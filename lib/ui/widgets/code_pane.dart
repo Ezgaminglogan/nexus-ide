@@ -67,7 +67,7 @@ class _CodePaneState extends State<CodePane> {
               key: _field,
               controller: widget.controller,
               focusNode: _focus,
-              textStyle: const TextStyle(fontFamily: 'monospace', fontSize: 14, height: 1.45),
+              textStyle: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: ['monospace'], fontSize: 14, height: 1.45),
               gutterStyle: const GutterStyle(
                 textStyle: TextStyle(color: Color(0xFF5C6680), height: 1.45),
                 background: Color(0xFF121726),

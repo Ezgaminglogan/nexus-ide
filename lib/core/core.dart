@@ -6,6 +6,7 @@ export 'code_format.dart';
 export 'console_buffer.dart';
 export 'otg.dart';
 export 'run_session.dart';
+export 'raspi.dart';
 export 'runner.dart';
 export 'stk500.dart';
 export 'toolchains.dart';

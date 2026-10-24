@@ -8,6 +8,7 @@ import 'package:highlight/languages/php.dart';
 import 'package:highlight/languages/xml.dart';
 
 import '../../core/core.dart';
+import '../widgets/raspi_panel.dart';
 import '../widgets/web_designer.dart';
 import '../widgets/widgets.dart';
 import 'preview_screen.dart';
@@ -199,6 +200,63 @@ class _EditorScreenState extends State<EditorScreen> {
     super.dispose();
   }
 
+  /// Phones: editor above the terminal. Wide screens (lab PCs): a VS Code-style rail to switch
+  /// languages, the editor in the middle, the terminal docked on the right.
+  Widget _layout(BuildContext context, List<Widget> editor) {
+    final width = MediaQuery.sizeOf(context).width;
+    final console = !_web && _console
+        ? ConsoleView(buffer: _session.console, onInput: _session.send, inputEnabled: _session.running)
+        : null;
+    final pi = _lang.id == 'raspi' ? RaspiPanel(dir: RunSession.workDir(_lang).path, running: _session.running) : null;
+    if (width < 900) {
+      return Column(children: [...editor, ?pi, if (console != null) Expanded(flex: 2, child: console)]);
+    }
+    return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      _rail(context),
+      const VerticalDivider(width: 1, color: Nx.line),
+      Expanded(child: Column(children: editor)),
+      if (console != null || pi != null) ...[
+        const VerticalDivider(width: 1, color: Nx.line),
+        SizedBox(
+          width: width * 0.36,
+          child: Column(children: [?pi, Expanded(child: console ?? const ColoredBox(color: Color(0xFF0B0F1A)))]),
+        ),
+      ],
+    ]);
+  }
+
+  Widget _rail(BuildContext context) => Container(
+        width: 64,
+        color: const Color(0xFF10162A),
+        child: ListView(padding: const EdgeInsets.symmetric(vertical: 8), children: [
+          IconButton(tooltip: 'Home', onPressed: () => Navigator.of(context).pop(), icon: const Icon(Icons.home_outlined, color: Nx.muted)),
+          const SizedBox(height: 8),
+          for (final l in languages)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Tooltip(
+                message: l.label,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: l == _lang
+                      ? null
+                      : () => Navigator.of(context).pushReplacement(PageRouteBuilder(
+                            transitionDuration: Duration.zero,
+                            pageBuilder: (_, _, _) => EditorScreen(language: l),
+                          )),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      border: Border(left: BorderSide(color: l == _lang ? Color(l.color) : Colors.transparent, width: 3)),
+                    ),
+                    child: Opacity(opacity: l == _lang ? 1 : 0.6, child: LanguageBadge(l, size: 36)),
+                  ),
+                ),
+              ),
+            ),
+        ]),
+      );
+
   @override
   Widget build(BuildContext context) {
     return CallbackShortcuts(
@@ -215,7 +273,7 @@ class _EditorScreenState extends State<EditorScreen> {
             title: Row(children: [
               LanguageBadge(_lang, size: 26),
               const SizedBox(width: 10),
-              Flexible(child: Text(_file, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontFamily: 'monospace'))),
+              Flexible(child: Text(_file, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontFamily: 'Consolas', fontFamilyFallback: ['monospace']))),
             ]),
             actions: [
               IconButton(tooltip: 'Format (Shift+Alt+F)', onPressed: _format, icon: const Icon(Icons.auto_fix_high_rounded)),
@@ -233,7 +291,7 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ],
           ),
-          body: Column(children: [
+          body: _layout(context, [
             if (_arduino)
               ArduinoBar(
                 board: _board,
@@ -279,11 +337,6 @@ class _EditorScreenState extends State<EditorScreen> {
               Expanded(flex: 3, child: CodePane(controller: _code)),
               if (Platform.isAndroid || Platform.isIOS) KeyBar(controller: _code, braces: _lang.braces),
             ],
-            if (!_web && _console)
-              Expanded(
-                flex: 2,
-                child: ConsoleView(buffer: _session.console, onInput: _session.send, inputEnabled: _session.running),
-              ),
           ]),
         ),
       ),

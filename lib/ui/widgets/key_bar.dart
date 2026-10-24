@@ -23,7 +23,7 @@ class KeyBar extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Center(
-                  child: Text(label, style: const TextStyle(fontFamily: 'monospace', fontSize: 15, color: Colors.white)),
+                  child: Text(label, style: const TextStyle(fontFamily: 'Consolas', fontFamilyFallback: ['monospace'], fontSize: 15, color: Colors.white)),
                 ),
               ),
             ),

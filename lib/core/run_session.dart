@@ -37,9 +37,9 @@ class RunSession extends ChangeNotifier {
   static Future<void> save(Language lang, String code, [String? file]) async {
     final dir = workDir(lang)..createSync(recursive: true);
     await File(p.join(dir.path, file ?? lang.fileName)).writeAsString(code);
+    // NEXUS-owned helpers (headers, csproj, the Pi's RPi/GPIO.py): rewritten so app updates reach them.
     for (final e in lang.extraFiles.entries) {
-      final f = File(p.join(dir.path, e.key));
-      if (!f.existsSync()) await f.writeAsString(e.value);
+      await (File(p.join(dir.path, e.key))..parent.createSync(recursive: true)).writeAsString(e.value);
     }
   }
 

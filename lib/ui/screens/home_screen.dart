@@ -19,7 +19,7 @@ class HomeScreen extends StatelessWidget {
         SliverToBoxAdapter(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1100),
+              constraints: const BoxConstraints(maxWidth: 2400), // fills a lab PC screen, caps ultrawide
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -28,14 +28,13 @@ class HomeScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
                     child: Text('Start coding', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Nx.muted)),
                   ),
-                  GridView.count(
+                  GridView(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    crossAxisCount: wide ? 5 : 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: wide ? 1.05 : 1.15,
+                    gridDelegate: wide
+                        ? const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 240)
+                        : const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.15),
                     children: [for (final l in languages) _LanguageTile(l)],
                   ),
                   const SizedBox(height: 24),
@@ -148,6 +147,7 @@ class _LanguageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pcOnly = !lang.availableHere;
+    final big = MediaQuery.sizeOf(context).width > 720; // lab PC: bigger icons and text
     final color = Color(lang.color);
     return Material(
       color: Nx.surface,
@@ -162,7 +162,7 @@ class _LanguageTile extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  LanguageBadge(lang, size: 40),
+                  LanguageBadge(lang, size: big ? 64 : 40),
                   const Spacer(),
                   if (pcOnly)
                     Container(
@@ -173,9 +173,9 @@ class _LanguageTile extends StatelessWidget {
                 ],
               ),
               const Spacer(),
-              Text(lang.label, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              Text(lang.label, style: TextStyle(fontSize: big ? 26 : 18, fontWeight: FontWeight.w700)),
               const SizedBox(height: 2),
-              Text(lang.blurb, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Nx.muted)),
+              Text(lang.blurb, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: big ? 15 : 12, color: Nx.muted)),
               const SizedBox(height: 6),
               Container(height: 3, width: 28, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
             ],

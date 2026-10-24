@@ -29,6 +29,7 @@ const _icons = <String, List<List<dynamic>>>{
   'csharp': HugeIcons.strokeRoundedCodeSquare,
   'web': HugeIcons.strokeRoundedHtml5,
   'php': HugeIcons.strokeRoundedPhp,
+  'raspi': HugeIcons.strokeRoundedCircuitBoard,
 };
 
 /// Rounded colored square with the language's icon (tiles, editor title).

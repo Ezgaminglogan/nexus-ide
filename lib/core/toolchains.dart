@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'arduino.dart';
+import 'raspi.dart';
 
 /// One command. [tool] is relative to [Toolchains.toolsDir] (no .exe),
 /// or `./name` for a program built inside the workspace.
@@ -295,6 +296,25 @@ final languages = <Language>[
     ],
     words: ['echo', 'isset', 'mysqli', 'query', 'prepare', 'bind_param', 'execute', 'fetch_assoc', 'fetch_all',
         '\$_POST', '\$_GET', 'htmlspecialchars', 'foreach', 'array', 'count', 'strlen'],
+  ),
+  Language(
+    id: 'raspi',
+    color: 0xFFC51A4A,
+    blurb: 'GPIO simulator · Python',
+    label: 'Raspberry Pi',
+    fileName: 'main.py',
+    mode: python,
+    template: raspiTemplate,
+    // Plain Python with a stand-in RPi.GPIO (raspi.dart); the editor shows the pin panel.
+    steps: [
+      (tool: 'python/python', args: ['-u', 'main.py']),
+    ],
+    androidSteps: [
+      (tool: 'bin/python3', args: ['-u', 'main.py']),
+    ],
+    extraFiles: raspiFiles,
+    words: ['GPIO', 'setmode', 'setup', 'output', 'input', 'cleanup', 'BCM', 'BOARD', 'OUT', 'IN', 'HIGH', 'LOW',
+        'PUD_UP', 'PUD_DOWN', 'pull_up_down', 'time', 'sleep'],
   ),
 ];
 

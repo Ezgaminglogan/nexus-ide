@@ -15,7 +15,7 @@ void main() {
     await tester.pumpWidget(NexusApp(ready: Future.value()));
     await tester.pumpAndSettle();
 
-    final labels = ['C', 'Arduino', 'Python', 'Java', 'C#', 'Web', 'PHP'];
+    final labels = ['C', 'Arduino', 'Python', 'Java', 'C#', 'Web', 'PHP', 'Raspberry Pi'];
     for (final l in labels) {
       expect(find.text(l), findsWidgets);
     }

@@ -26,7 +26,7 @@ class _ConsoleViewState extends State<ConsoleView> {
     super.dispose();
   }
 
-  static const _mono = TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.35, color: Color(0xFFD6DCEA));
+  static const _mono = TextStyle(fontFamily: 'Consolas', fontFamilyFallback: ['monospace'], fontSize: 13, height: 1.35, color: Color(0xFFD6DCEA));
 
   static TextStyle _styleFor(String line) => switch (line.isEmpty ? '' : line[0]) {
         '✓' => _mono.copyWith(color: Nx.run, fontWeight: FontWeight.w600),

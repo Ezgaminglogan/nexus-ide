@@ -25,8 +25,9 @@ Get the Android APK from the [latest release](../../releases/latest). It's a sid
 | **Arduino** (Uno, Nano) | avr-gcc on the phone + upload over **USB OTG**, Serial Monitor | arduino-cli (also Mega 2560) |
 | **Web** (HTML, CSS, JS) | Editor, **drag-and-drop designer**, in-app preview | Editor, designer, opens in the browser |
 | **PHP + MySQL** | PHP built-in server + MariaDB | Portable PHP (or XAMPP) + MySQL |
+| **Raspberry Pi** (GPIO simulator) | Python with a stand-in `RPi.GPIO`: LEDs and buttons in a live 40-pin panel | Same |
 
-Also: syntax highlighting and autocomplete, a coding key bar for phone keyboards, VS Code-style auto-indent (Enter after `{` or an opening tag), a **Format** button that indents C-style code and HTML/PHP, multiple files per Web/PHP project, and a terminal that only appears when a program runs.
+Also: syntax highlighting and autocomplete, a coding key bar for phone keyboards, VS Code-style auto-indent (Enter after `{` or an opening tag), a **Format** button that indents C-style code and HTML/PHP, multiple files per Web/PHP project, a terminal that only appears when a program runs, and on Windows a full-screen VS Code-style layout (language bar on the left, terminal docked on the right).
 
 **iPhone:** Apple doesn't allow apps to run compilers, so only the Web tile can work there. An iOS build is untested.
 
