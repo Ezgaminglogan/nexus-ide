@@ -87,8 +87,9 @@ void main() {
     expect(find.text('PHP PROJECT'), findsOneWidget); // explorer sidebar on a wide screen
     await tester.tap(find.byTooltip('New file'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'pages/admin/about.php');
-    await tester.tap(find.text('OK'));
+    await tester.enterText(find.byKey(const Key('new-file-name')), 'pages/admin/about.php');
+    await tester.pump();
+    await tester.tap(find.text('Create File'));
     for (var i = 0; i < 5; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50))); // real file IO in _open
       await tester.pump();

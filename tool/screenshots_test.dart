@@ -10,8 +10,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus_ide/core/core.dart';
 import 'package:nexus_ide/main.dart';
+import 'package:nexus_ide/learn/tracks.dart';
+import 'package:nexus_ide/ui/screens/editor_screen.dart';
+import 'package:nexus_ide/ui/screens/learn_screen.dart';
+import 'package:nexus_ide/ui/screens/terminal_screen.dart';
 import 'package:nexus_ide/ui/screens/settings_screen.dart';
 import 'package:nexus_ide/ui/widgets/update_dialog.dart';
+import 'package:nexus_ide/ui/widgets/widgets.dart';
 
 Future<void> font(String family, List<String> files) async {
   final loader = FontLoader(family);
@@ -157,5 +162,90 @@ void main() {
     );
     await settle(t);
     await shot(t, 'whats_new');
+  });
+
+  Future<void> openLearn(WidgetTester t, String search, String title) async {
+    await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: Nx.theme(), home: const LearnScreen()));
+    await settle(t);
+    if (find.byKey(const Key('learn-search')).evaluate().isEmpty) {
+      await t.tap(find.byTooltip('Open navigation menu'));
+      await settle(t);
+    }
+    await t.enterText(find.byKey(const Key('learn-search')), search);
+    await t.pump();
+    await t.tap(find.widgetWithText(ListTile, title).first);
+    await settle(t);
+  }
+
+  testWidgets('learn: lesson (desktop and phone)', (t) async {
+    t.view.physicalSize = const Size(1600, 1000);
+    t.view.devicePixelRatio = 1;
+    await openLearn(t, 'for loop', 'Loops: for and while');
+    await shot(t, 'learn_lesson');
+    await t.scrollUntilVisible(find.text('Common mistake'), 300, scrollable: find.byType(Scrollable).last);
+    await settle(t);
+    await shot(t, 'learn_lesson_mistake');
+
+    t.view.physicalSize = const Size(412 * 2.6, 915 * 2.6);
+    t.view.devicePixelRatio = 2.6;
+    await openLearn(t, 'scanf', 'Input and output');
+    await shot(t, 'phone_learn_lesson');
+  });
+
+  // The exercise page before Check (tests, buttons, locked solution). Real checks are covered by
+  // tool/verify_learn_test.dart; a child process doesn't finish under the widget test's fake clock.
+  testWidgets('learn: exercise page', (t) async {
+    t.view.physicalSize = const Size(1600, 1000);
+    t.view.devicePixelRatio = 1;
+    final ex = tracks.firstWhere((t) => t.langId == 'python').exercises[1];
+    await openLearn(t, ex.title, ex.title);
+    await shot(t, 'learn_exercise');
+  });
+
+  // Phone layout drawn by the test engine with a real Python run on this PC (not a device capture).
+  testWidgets('phone: full-screen terminal after Run', (t) async {
+    EditorScreen.terminalScreen = true;
+    addTearDown(() => EditorScreen.terminalScreen = Platform.isAndroid);
+    t.view.physicalSize = const Size(412 * 2.6, 915 * 2.6);
+    t.view.devicePixelRatio = 2.6;
+    File('${Toolchains.workRoot}/python/main.py')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('name = input("Enter your name: ")\nprint("Compiling...")\nprint(f"Hello, {name}!")\n');
+    await t.pumpWidget(NexusApp(ready: Future.value()));
+    await settle(t);
+    await t.ensureVisible(find.text('Scripts and data'));
+    await t.tap(find.text('Scripts and data'));
+    await settle(t);
+    await t.tap(find.byType(RunButton));
+    RunState? state() => find.byType(TerminalScreen).evaluate().isEmpty ? null : (find.byType(TerminalScreen).evaluate().first.widget as TerminalScreen).session.state;
+    for (var i = 0; i < 300 && state() != RunState.running; i++) {
+      await settle(t);
+    }
+    await t.runAsync(() => Future<void>.delayed(const Duration(seconds: 1)));
+    await settle(t);
+    await t.enterText(find.byKey(const Key('terminal-input')), 'Logan');
+    await t.tap(find.byTooltip('Send'));
+    for (var i = 0; i < 300 && state() != RunState.finished; i++) {
+      await settle(t);
+    }
+    await settle(t);
+    await shot(t, 'phone_terminal');
+  });
+
+  testWidgets('new file dialog (desktop)', (t) async {
+    t.view.physicalSize = const Size(1400, 900);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(NexusApp(ready: Future.value()));
+    await settle(t);
+    await t.ensureVisible(find.text('Object-oriented'));
+    await t.tap(find.text('Object-oriented'));
+    await settle(t);
+    await t.tap(find.byTooltip('New file'));
+    await settle(t);
+    await t.enterText(find.byKey(const Key('new-file-name')), 'Student');
+    await t.pump();
+    await t.tap(find.text('Preview'));
+    await settle(t);
+    await shot(t, 'new_file_dialog');
   });
 }

@@ -143,7 +143,74 @@ _save()  # a fresh run starts with no pins set up
 ''';
 
 /// Written next to the student's main.py so `import RPi.GPIO as GPIO` finds it.
-const raspiFiles = {'RPi/__init__.py': '', 'RPi/GPIO.py': _gpioPy};
+/// The part of GPIO Zero the official Raspberry Pi docs start with (LED, Button), on top of the
+/// stand-in above so the pin panel shows it. Pins are BCM (GPIO) numbers, as in real GPIO Zero.
+/// ponytail: LED and Button only; add more classes when lessons need them.
+const _gpiozeroPy = r'''
+# NEXUS IDE stand-in for a small part of GPIO Zero: LED and Button. Pin numbers are GPIO (BCM)
+# numbers, like the real library. Other GPIO Zero classes are not simulated.
+import time
+import RPi.GPIO as _G
+
+if _G.getmode() is None:
+    _G.setmode(_G.BCM)
+
+
+class LED:
+    def __init__(self, pin):
+        self.pin = pin
+        _G.setup(pin, _G.OUT)
+
+    def on(self):
+        _G.output(self.pin, _G.HIGH)
+
+    def off(self):
+        _G.output(self.pin, _G.LOW)
+
+    def toggle(self):
+        _G.output(self.pin, not self.is_lit)
+
+    @property
+    def is_lit(self):
+        return _G.input(self.pin) == _G.HIGH
+
+    def blink(self, on_time=1, off_time=1, n=1):
+        # Simulator: blinks n times and returns (the real library blinks in the background).
+        for _ in range(n):
+            self.on()
+            time.sleep(on_time)
+            self.off()
+            time.sleep(off_time)
+
+
+class Button:
+    def __init__(self, pin, pull_up=True):
+        self.pin = pin
+        _G.setup(pin, _G.IN, pull_up_down=_G.PUD_UP if pull_up else _G.PUD_DOWN)
+        self._pressed_level = _G.LOW if pull_up else _G.HIGH
+
+    @property
+    def is_pressed(self):
+        return _G.input(self.pin) == self._pressed_level
+
+    def wait_for_press(self, timeout=None):
+        start = time.time()
+        while not self.is_pressed:
+            if timeout is not None and time.time() - start > timeout:
+                return False
+            time.sleep(0.02)
+        return True
+
+    def wait_for_release(self, timeout=None):
+        start = time.time()
+        while self.is_pressed:
+            if timeout is not None and time.time() - start > timeout:
+                return False
+            time.sleep(0.02)
+        return True
+''';
+
+const raspiFiles = {'RPi/__init__.py': '', 'RPi/GPIO.py': _gpioPy, 'gpiozero/__init__.py': _gpiozeroPy};
 
 const raspiTemplate = '''import time
 import RPi.GPIO as GPIO

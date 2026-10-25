@@ -8,6 +8,7 @@ import '../../core/core.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 import 'editor_screen.dart';
+import 'learn_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -47,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const _Header(),
+                  const _LearnCard(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
                     child: Text('Start coding', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Nx.muted)),
@@ -225,6 +227,43 @@ class _LanguageTile extends StatelessWidget {
                 ),
               ]),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Entry to Learn & Practice: lessons, a quiz and checked exercises for every workspace.
+class _LearnCard extends StatelessWidget {
+  const _LearnCard();
+
+  @override
+  Widget build(BuildContext context) {
+    void open() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LearnScreen()));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: Material(
+        color: Nx.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: open,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(children: [
+              const HugeIcon(icon: HugeIcons.strokeRoundedMortarboard02, color: Color(0xFF8FB0FF), size: 34),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Learn & Practice', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 2),
+                  Text('Offline lessons, quizzes and checked exercises for all 8 workspaces.', style: TextStyle(fontSize: 13, color: Nx.muted)),
+                ]),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonal(onPressed: open, child: const Text('Open')),
+            ]),
           ),
         ),
       ),

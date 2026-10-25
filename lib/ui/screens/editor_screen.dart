@@ -15,11 +15,17 @@ import '../widgets/explorer.dart';
 import '../widgets/raspi_panel.dart';
 import '../widgets/web_designer.dart';
 import '../widgets/widgets.dart';
+import 'learn_screen.dart';
 import 'preview_screen.dart';
+import 'terminal_screen.dart';
 
 class EditorScreen extends StatefulWidget {
   const EditorScreen({super.key, required this.language});
   final Language language;
+
+  /// Android: Run opens the terminal as its own full screen instead of docking it under the
+  /// editor. Decided by platform, not width (tests switch it on to check the phone flow).
+  static bool terminalScreen = Platform.isAndroid;
 
   @override
   State<EditorScreen> createState() => _EditorScreenState();
@@ -102,9 +108,12 @@ class _EditorScreenState extends State<EditorScreen> {
     setState(() => _tabs.remove(rel));
   }
 
+  void _learn() => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LearnScreen(langId: _lang.id)));
+
   void _say(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   void _renamed(String from, String to) => setState(() {
+        moveStarterRecords(_lang, from, to); // Reset rebuilds the same template from the new name
         for (var i = 0; i < _tabs.length; i++) {
           if (_tabs[i] == from || _tabs[i].startsWith('$from/')) _tabs[i] = to + _tabs[i].substring(from.length);
         }
@@ -117,6 +126,7 @@ class _EditorScreenState extends State<EditorScreen> {
 
   /// A deleted file (or folder) closes its tabs without saving them back.
   void _deleted(String rel) {
+    forgetStarterRecords(_lang, rel);
     final gone = _tabs.where((t) => t == rel || t.startsWith('$rel/')).toList();
     if (gone.contains(_file)) {
       _saved[_file] = _code.fullText; // don't write the deleted file back
@@ -128,6 +138,107 @@ class _EditorScreenState extends State<EditorScreen> {
       _saved[keep] = _code.fullText;
     }
     setState(() => _tabs.removeWhere(gone.contains));
+  }
+
+  /// The language a file is written in, for messages ("the default HTML starter template").
+  String _kind(String rel) => switch (rel.split('.').last.toLowerCase()) {
+        'html' || 'htm' => 'HTML',
+        'css' => 'CSS',
+        'js' => 'JavaScript',
+        'php' => 'PHP',
+        'py' => _lang.id == 'raspi' ? 'Raspberry Pi Python' : 'Python',
+        'java' => 'Java',
+        'cs' => 'C#',
+        'c' || 'h' => 'C',
+        'ino' => 'Arduino',
+        _ => _lang.label,
+      };
+
+  /// Reset to Starter Code: puts the starter skeleton back in ONE file, after a confirmation that
+  /// names it. The file is fixed when the dialog opens, so switching tabs can't redirect it. The old
+  /// code is written to workspace/.nexus/recovery first; if that fails, nothing is replaced.
+  Future<void> _resetToStarter() async {
+    final rel = _file; // bound now
+    final name = rel.split('/').last;
+    final starter = starterFor(_lang, rel, id: starterId(_lang, rel), root: _root); // the template it was made from
+    if (starter == null) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('No starter template'),
+          content: Text('No starter template is configured for "$name", so NEXUS won\'t change it. Your code is untouched.'),
+          actions: [FilledButton(autofocus: true, onPressed: () => Navigator.pop(context), child: const Text('OK'))],
+        ),
+      );
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.restart_alt, color: Nx.stop),
+        title: const Text('Reset to starter code?'),
+        content: SizedBox(
+          width: 460,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Are you sure you want to clear the code in ‘$rel’? This will replace its current contents with the default ${_kind(rel)} starter template.'),
+            const SizedBox(height: 12),
+            const Text('Only this file changes. Other files, folders, settings and your learning progress stay as they are.', style: TextStyle(color: Nx.muted)),
+            const SizedBox(height: 6),
+            Text('The reset is saved right away${_session.running ? ', and the program that is running now is stopped' : ''}. Undo in the message that follows brings your code back.',
+                style: const TextStyle(color: Nx.muted)),
+          ]),
+        ),
+        actions: [
+          TextButton(autofocus: true, onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Nx.stop),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset to Starter Code'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return; // Cancel, Escape or tapping outside: nothing changes
+
+    final before = rel == _file ? _code.fullText : RunSession.load(_lang, rel);
+    try {
+      final stamp = DateTime.now().toIso8601String().replaceAll(RegExp(r'[^0-9]'), '');
+      File('${Toolchains.workRoot}/.nexus/recovery/${_lang.dir.replaceAll('/', '_')}/${rel.replaceAll('/', '__')}.$stamp.txt')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(before);
+    } on FileSystemException catch (e) {
+      _say('Reset cancelled: NEXUS could not save a copy of your code first (${e.osError?.message ?? e.message}).');
+      return;
+    }
+    if (_session.running) await _session.stop();
+    await _replace(rel, starter);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text('$name is back to the starter code.'),
+        duration: const Duration(seconds: 10),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            await _replace(rel, before);
+            if (mounted) _say('$name: your code is back.');
+          },
+        ),
+      ));
+  }
+
+  /// Writes [text] into [rel] and, if it is the open tab, the editor (cursor at the top, right
+  /// syntax mode). Saves immediately, so no later save can bring back the replaced text.
+  Future<void> _replace(String rel, String text) async {
+    await RunSession.save(_lang, text, rel);
+    _saved[rel] = text;
+    if (rel != _file || !mounted) return;
+    _code
+      ..language = _modes[rel.split('.').last.toLowerCase()] ?? _lang.mode
+      ..fullText = text
+      ..selection = const TextSelection.collapsed(offset: 0);
+    setState(() => _dirty = false);
   }
 
   void _toggleFullscreen() {
@@ -148,6 +259,12 @@ class _EditorScreenState extends State<EditorScreen> {
         onRenamed: _renamed,
         onDeleted: _deleted,
         onExpandedChanged: _saveExpanded,
+        language: _lang,
+        onCreated: (rel, cursor) async {
+          await _open(rel);
+          if (rel == _file) _code.selection = TextSelection.collapsed(offset: cursor.clamp(0, _code.text.length));
+          if (mounted && MediaQuery.sizeOf(context).width < 900) Navigator.of(context).maybePop(); // close the drawer
+        },
       );
 
   Widget _tabStrip() => Container(
@@ -203,7 +320,7 @@ class _EditorScreenState extends State<EditorScreen> {
   // The terminal shows only while something runs or has printed; clearing it hides it.
   bool _console = false;
   void _consoleChanged() {
-    final show = _session.running || !_session.console.isEmpty;
+    final show = _session.running || !_session.console.isEmpty || _session.state == RunState.failed;
     if (show != _console) setState(() => _console = show);
   }
 
@@ -237,9 +354,8 @@ class _EditorScreenState extends State<EditorScreen> {
   /// Phone build steps, after writing what they compile; null (with a message) if this board can't.
   List<Step>? _phoneBuild(String code) {
     if (_board.otgBaud == null) {
-      _session.console
-        ..clear()
-        ..add('${_board.name} uploads from the lab PCs only. On phones, use an Uno or Nano.\n');
+      _session.notice('${_board.name} uploads from the lab PCs only. On phones, use an Uno or Nano.');
+      _showTerminal();
       return null;
     }
     final dir = Directory('${RunSession.workDir(_lang).path}/build')..createSync(recursive: true);
@@ -247,44 +363,92 @@ class _EditorScreenState extends State<EditorScreen> {
     return phoneBuildSteps;
   }
 
-  Future<void> _run() async {
-    if (!_session.running) _session.run(_lang, await _main());
+  bool _launching = false; // saving before a run: a second tap must not start a second one
+  VoidCallback? _again; // Run Again in the terminal screen repeats the last action (Run, Verify, Upload...)
+
+  /// Starts [run] after saving, once, and on Android shows the terminal screen.
+  Future<void> _start(Future<void> Function(String code) run) async {
+    if (_launching || _session.running) return;
+    _again = () => _start(run);
+    _launching = true;
+    try {
+      final code = await _main();
+      final started = run(code);
+      _showTerminal();
+      await started;
+    } finally {
+      _launching = false;
+    }
   }
 
-  Future<void> _verify() async {
-    final code = await _main();
-    final steps = _phone ? _phoneBuild(code) : verifySteps;
-    if (steps != null) _session.run(_lang, code, steps: steps, vars: _vars, runLabel: 'Verifying sketch…');
+  Future<void> _run() => _start((code) => _session.run(_lang, code));
+
+  // Workflows whose result is terminal output (not the Web/PHP preview).
+  bool get _terminalFlow => !_web && !_php;
+  bool _terminalOpen = false;
+
+  /// Android: the terminal as its own screen over the editor (which stays as it is underneath).
+  Future<void> _showTerminal() async {
+    if (!EditorScreen.terminalScreen || !_terminalFlow || _terminalOpen || !mounted) return;
+    _terminalOpen = true;
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => TerminalScreen(
+        session: _session,
+        fileName: _file.split('/').last,
+        onRunAgain: () => (_again ?? _run)(),
+        locate: _locate,
+        onOpen: _goTo,
+        raspiDir: _lang.id == 'raspi' ? RunSession.workDir(_lang).path : null,
+      ),
+    ));
+    _terminalOpen = false;
   }
+
+  /// A path from a compiler/runtime message as a file of this workspace, or null.
+  String? _locate(String path) {
+    final norm = path.replaceAll('\\', '/');
+    final root = _root.replaceAll('\\', '/');
+    var rel = norm.startsWith('$root/') ? norm.substring(root.length + 1) : norm;
+    if (rel.startsWith('./')) rel = rel.substring(2);
+    return File('$_root/$rel').existsSync() && !rel.startsWith('/') && !rel.contains(':') ? rel : null;
+  }
+
+  /// Opens [at]'s file with the cursor at the start of that line.
+  Future<void> _goTo(SourceLocation at) async {
+    await _open(at.file);
+    final lines = _code.text.split('\n');
+    final n = at.line.clamp(1, lines.length);
+    final offset = lines.take(n - 1).fold<int>(0, (sum, l) => sum + l.length + 1);
+    _code.selection = TextSelection.collapsed(offset: offset);
+  }
+
+  Future<void> _verify() => _start((code) async {
+        final steps = _phone ? _phoneBuild(code) : verifySteps;
+        if (steps != null) await _session.run(_lang, code, steps: steps, vars: _vars, runLabel: 'Verifying sketch…');
+      });
 
   void _needPort(void Function() action) {
     if (_port != null) return action();
-    _session.console
-      ..clear()
-      ..add('Connect a board and pick its port first.\n');
+    _session.notice('Connect a board and pick its port first.');
+    _showTerminal();
     _refreshPorts();
   }
 
-  void _upload() => _needPort(() async {
+  void _upload() => _needPort(() => _start((code) async {
         final label = 'Uploading to ${_board.name} on $_port…';
-        final code = await _main();
-        if (!_phone) {
-          _session.run(_lang, code, steps: uploadSteps, vars: _vars, runLabel: label);
-          return;
-        }
+        if (!_phone) return _session.run(_lang, code, steps: uploadSteps, vars: _vars, runLabel: label);
         final steps = _phoneBuild(code);
         if (steps == null) return;
         final hex = '$_root/$phoneHex';
-        _session.run(_lang, code, steps: steps, vars: _vars, runLabel: label, then: otgUpload(_port!, {_board.otgBaud!, 115200, 57600}.toList(), hex));
-      });
+        await _session.run(_lang, code, steps: steps, vars: _vars, runLabel: label, then: otgUpload(_port!, {_board.otgBaud!, 115200, 57600}.toList(), hex));
+      }));
 
-  void _monitor() => _needPort(() async {
-        final label = 'Serial Monitor on $_port @ $_baud baud (press Stop to close)';
-        final code = await _main();
-        _phone
+  void _monitor() => _needPort(() => _start((code) {
+        final label = 'Serial Monitor on $_port @ $_baud baud';
+        return _phone
             ? _session.run(_lang, code, steps: const [], runLabel: label, then: otgMonitor(_port!, _baud))
             : _session.run(_lang, code, steps: monitorSteps, vars: _vars, runLabel: label);
-      });
+      }));
 
   void _format() => _code.format(braces: _lang.braces);
 
@@ -302,8 +466,9 @@ class _EditorScreenState extends State<EditorScreen> {
   /// languages, the editor in the middle, the terminal docked on the right.
   Widget _layout(BuildContext context, List<Widget> editor) {
     final width = MediaQuery.sizeOf(context).width;
-    final console = !_web && _console
-        ? ConsoleView(buffer: _session.console, onInput: _session.send, inputEnabled: _session.running)
+    // Android: the terminal is its own screen (Run opens it), never docked here.
+    final console = !_web && _console && !(EditorScreen.terminalScreen && _terminalFlow)
+        ? ConsoleView(session: _session, locate: _locate, onOpen: _goTo)
         : null;
     final pi = _lang.id == 'raspi' ? RaspiPanel(dir: RunSession.workDir(_lang).path, running: _session.running) : null;
     if (width < 900) {
@@ -349,8 +514,11 @@ class _EditorScreenState extends State<EditorScreen> {
       color: const Color(0xFF10162A),
       child: Row(children: [
         Text('Ln $line, Col $col', style: const TextStyle(fontSize: 12, color: Nx.muted)),
-        const Spacer(),
-        Text('${_file.split('.').last.toUpperCase()} · Ctrl+F find · Ctrl+S save · F5 run', style: const TextStyle(fontSize: 12, color: Nx.muted)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text('${_file.split('.').last.toUpperCase()} · Ctrl+F find · Ctrl+S save · F5 run',
+              textAlign: TextAlign.end, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Nx.muted)),
+        ),
       ]),
     );
   }
@@ -403,8 +571,7 @@ class _EditorScreenState extends State<EditorScreen> {
             leading: const BackButton(),
             titleSpacing: 0,
             title: Row(children: [
-              LanguageBadge(_lang, size: 26),
-              const SizedBox(width: 10),
+              if (MediaQuery.sizeOf(context).width >= 440) ...[LanguageBadge(_lang, size: 26), const SizedBox(width: 10)], // phones: room for the file name
               Flexible(child: Text(_file, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontFamily: 'Consolas', fontFamilyFallback: ['monospace']))),
             ]),
             actions: [
@@ -431,6 +598,13 @@ class _EditorScreenState extends State<EditorScreen> {
                     icon: Icon(_fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
                   ),
                 IconButton(tooltip: 'Format (Shift+Alt+F)', onPressed: _format, icon: const Icon(Icons.auto_fix_high_rounded)),
+                if (!_design)
+                  IconButton(
+                    tooltip: 'Reset to Starter Code (puts the starter template back in this file; asks first)',
+                    onPressed: _resetToStarter,
+                    icon: const Icon(Icons.restart_alt),
+                  ),
+                IconButton(tooltip: 'Learn ${_lang.label} (lessons and practice)', onPressed: _learn, icon: const Icon(Icons.school_outlined)),
               ] else
                 PopupMenuButton<VoidCallback>(
                   tooltip: 'More actions',
@@ -446,7 +620,17 @@ class _EditorScreenState extends State<EditorScreen> {
                       ),
                     ),
                     PopupMenuItem(value: _format, child: const ListTile(leading: Icon(Icons.auto_fix_high_rounded), title: Text('Format code'))),
+                    if (!_design)
+                      PopupMenuItem(value: _resetToStarter, child: const ListTile(leading: Icon(Icons.restart_alt), title: Text('Reset to Starter Code'))),
+                    PopupMenuItem(value: _learn, child: ListTile(leading: const Icon(Icons.school_outlined), title: Text('Learn ${_lang.label}'))),
                   ],
+                ),
+              if (EditorScreen.terminalScreen && _terminalFlow && _session.state != RunState.idle)
+                IconButton(
+                  key: const Key('open-terminal'),
+                  tooltip: _session.running ? 'Terminal (running)' : 'Terminal (last run)',
+                  onPressed: _showTerminal,
+                  icon: Badge(isLabelVisible: _session.running, backgroundColor: Nx.run, smallSize: 8, child: const Icon(Icons.terminal)),
                 ),
               if (_arduino)
                 IconButton(tooltip: 'Verify (compile)', onPressed: _session.running ? null : _verify, icon: const Icon(Icons.check_circle_outline_rounded)),

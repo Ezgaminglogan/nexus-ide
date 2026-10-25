@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hugeicons/hugeicons.dart';
 
+import '../../core/toolchains.dart' show Language;
 import '../../core/workspace.dart' as ws;
 import '../theme.dart';
+import 'new_file_dialog.dart';
 
 /// VS Code-style file tree for one language's workspace folder. Sidebar on PCs, drawer on phones.
 /// Every action goes straight to the files on disk (core/workspace.dart keeps it inside [root]).
@@ -18,6 +20,8 @@ class Explorer extends StatefulWidget {
     required this.onRenamed,
     required this.onDeleted,
     required this.onExpandedChanged,
+    this.language,
+    this.onCreated,
   });
 
   final String root, project, mainFile, selected;
@@ -25,6 +29,8 @@ class Explorer extends StatefulWidget {
   final ValueChanged<String> onOpen, onDeleted;
   final void Function(String from, String to) onRenamed;
   final VoidCallback onExpandedChanged;
+  final Language? language; // New File offers this workspace's starter templates
+  final void Function(String rel, int cursor)? onCreated; // opened at the starter's cursor position
 
   @override
   State<Explorer> createState() => _ExplorerState();
@@ -65,19 +71,31 @@ class _ExplorerState extends State<Explorer> {
   }
 
   Future<void> _new({required bool folder, String inside = ''}) async {
-    final name = await _ask(folder ? 'New folder' : 'New file', hint: folder ? 'assets/images' : 'about.php  ·  css/style.css');
-    if (name == null || name.trim().isEmpty) return;
-    final rel = inside.isEmpty ? name.trim() : '$inside/${name.trim()}';
-    final err = folder ? ws.createFolder(widget.root, rel) : ws.createFile(widget.root, rel);
-    if (err != null) return _say(err);
+    String rel;
+    var cursor = 0;
+    if (folder) {
+      final name = await _ask('New folder', hint: 'assets/images');
+      if (name == null || name.trim().isEmpty) return;
+      rel = inside.isEmpty ? name.trim() : '$inside/${name.trim()}';
+      final err = ws.createFolder(widget.root, rel);
+      if (err != null) return _say(err);
+      rel = ws.safeRel(rel)!;
+    } else {
+      // The dialog creates the file (with its starter) itself and reports problems inline.
+      final made = widget.language == null
+          ? null
+          : await showNewFileDialog(context, lang: widget.language!, root: widget.root, folder: inside);
+      if (made == null) return;
+      (rel, cursor) = (made.rel, made.cursor);
+    }
     // Open every folder on the way so the new item is visible.
-    final parts = (ws.safeRel(rel) ?? rel).split('/');
+    final parts = rel.split('/');
     for (var i = 1; i < parts.length + (folder ? 1 : 0); i++) {
       widget.expanded.add(parts.take(i).join('/'));
     }
     widget.onExpandedChanged();
     _refresh();
-    if (!folder) widget.onOpen(ws.safeRel(rel)!);
+    if (!folder) (widget.onCreated ?? (r, _) => widget.onOpen(r))(rel, cursor);
   }
 
   Future<void> _rename(String rel) async {

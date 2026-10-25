@@ -17,7 +17,7 @@ String? safeRel(String rel) {
 String _abs(String root, String rel) => p.joinAll([root, ...rel.split('/')]);
 
 /// Hidden from the explorer: dot-files and what compilers/NEXUS generate.
-const _generated = {'build', 'classes', 'bin', 'obj', 'RPi', '__pycache__', 'design.json', 'nexus_unbuf.h', 'nexus.csproj', 'main.exe', 'main.dex', 'main', 'gpio_state.txt', 'gpio_in.txt'};
+const _generated = {'build', 'classes', 'bin', 'obj', 'RPi', 'gpiozero', '__pycache__', 'design.json', 'nexus_unbuf.h', 'nexus.csproj', 'main.exe', 'main.dex', 'main', 'gpio_state.txt', 'gpio_in.txt'};
 
 bool shown(String name) => !name.startsWith('.') && !_generated.contains(name);
 
@@ -33,15 +33,39 @@ List<({String rel, String name, bool folder})> listDir(String root, [String rel 
   return items;
 }
 
-/// Each returns null on success or a sentence to show the student.
-String? createFile(String root, String rel) {
+const _reserved = {'con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'};
+
+/// Why [rel] can't be a file or folder name on Windows or Android, or null if it can.
+/// (The workspace often lives on a lab PC's USB drive, so Windows rules apply everywhere.)
+String? nameProblem(String rel) {
   final r = safeRel(rel);
   if (r == null) return 'Use letters, numbers, "-", "_" and "." (folders with "/"), like css/style.css.';
+  for (final part in r.split('/')) {
+    if (part.endsWith('.') || part.endsWith(' ')) return '"$part" can\'t end with a dot or a space.';
+    if (_reserved.contains(part.split('.').first.toLowerCase())) return '"$part" is a name Windows keeps for itself; pick another.';
+    if (part.length > 100) return '"${part.substring(0, 20)}…" is too long (100 characters at most).';
+  }
+  return null;
+}
+
+/// Each returns null on success or a sentence to show the student.
+String? createFile(String root, String rel, [String content = '']) {
+  final problem = nameProblem(rel);
+  if (problem != null) return problem;
+  final r = safeRel(rel)!;
   final f = File(_abs(root, r));
   if (f.existsSync() || Directory(f.path).existsSync()) return '$r already exists.';
-  f
-    ..createSync(recursive: true)
-    ..writeAsStringSync('');
+  try {
+    f.createSync(recursive: true, exclusive: true); // never overwrites a file that appeared meanwhile
+    f.writeAsStringSync(content, flush: true);
+  } on FileSystemException catch (e) {
+    try {
+      if (f.existsSync() && f.lengthSync() == 0) f.deleteSync(); // no half-made file left in the explorer
+    } on FileSystemException {
+      // nothing more to clean up
+    }
+    return 'Could not create $r: ${e.osError?.message ?? e.message}';
+  }
   return null;
 }
 

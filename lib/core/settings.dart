@@ -5,28 +5,33 @@ import 'package:path/path.dart' as p;
 
 import 'toolchains.dart';
 
-/// App settings in `workspace/.nexus/settings.json`: next to the student's files, never inside the
+/// Small JSON stores in `workspace/.nexus/<name>.json`: next to the student's files, never inside the
 /// app folder an update replaces. Unknown or broken files fall back to defaults.
+/// [instance] holds app settings; [named] ('learn') keeps learning progress apart from them.
 class Settings {
-  Settings._(this._data);
+  Settings._(this._file, this._data);
+  final File _file;
   final Map<String, dynamic> _data;
 
-  static Settings? _instance;
-  static File get _file => File(p.join(Toolchains.workRoot, '.nexus', 'settings.json'));
+  static final _open = <String, Settings>{};
 
-  static Settings get instance {
-    if (_instance != null) return _instance!;
-    Map<String, dynamic> data = {};
-    try {
-      data = (jsonDecode(_file.readAsStringSync()) as Map).cast<String, dynamic>();
-    } on Object {
-      // first launch or a hand-broken file
-    }
-    return _instance = Settings._(data);
-  }
+  static Settings get instance => named('settings');
 
-  /// Tests point the workspace somewhere new; forget the cached copy.
-  static void reset() => _instance = null;
+  static Settings named(String name) => _open[name] ??= () {
+        final file = File(p.join(Toolchains.workRoot, '.nexus', '$name.json'));
+        Map<String, dynamic> data = {};
+        try {
+          data = (jsonDecode(file.readAsStringSync()) as Map).cast<String, dynamic>();
+        } on Object {
+          // first launch or a hand-broken file
+        }
+        return Settings._(file, data);
+      }();
+
+  /// Tests point the workspace somewhere new; forget the cached copies.
+  static void reset() => _open.clear();
+
+  Iterable<String> get keys => _data.keys.toList();
 
   T get<T>(String key, T fallback) {
     final v = _data[key];

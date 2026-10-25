@@ -15,6 +15,10 @@ class RunHandle {
   RunHandle(this._p, this.output);
   final Process _p;
 
+  /// Set when NEXUS ended the program itself (time or output limit). Kept out of [output], which
+  /// is only what the program printed.
+  String? endedBy;
+
   /// stdout + stderr, decoded, live. Closes when both pipes close.
   final Stream<String> output;
   Future<int> get exitCode => _p.exitCode;
@@ -25,6 +29,15 @@ class RunHandle {
       _p.stdin.writeln(line);
     } on StateError {
       // stdin already closed: program exited.
+    }
+  }
+
+  /// End of input (like Ctrl+D): practice checks send every line, then close.
+  void closeInput() {
+    try {
+      _p.stdin.close();
+    } on Object {
+      // already closed
     }
   }
 
@@ -43,6 +56,7 @@ Future<RunHandle> runTool(
 }) async {
   final p = await Process.start(exe, args, workingDirectory: cwd, environment: env);
   final out = StreamController<String>();
+  late final RunHandle h;
   var chars = 0, open = 2;
   var capped = false;
 
@@ -52,7 +66,7 @@ Future<RunHandle> runTool(
       chars += text.length;
       if (chars > maxChars) {
         capped = true;
-        out.add('\n[NEXUS] Output limit reached - program stopped.\n');
+        h.endedBy = 'Stopped by NEXUS: the program printed more than ${maxChars ~/ 1000}k characters (an endless loop?).';
         killTree(p.pid);
         return;
       }
@@ -62,14 +76,15 @@ Future<RunHandle> runTool(
     });
   }
 
+  h = RunHandle(p, out.stream);
   pipe(p.stdout);
   pipe(p.stderr);
   if (timeout != null) {
     final t = Timer(timeout, () {
-      out.add('\n[NEXUS] Timed out after ${timeout.inSeconds}s.\n');
+      h.endedBy = 'Timed out after ${timeout.inSeconds} s.';
       killTree(p.pid);
     });
     p.exitCode.whenComplete(t.cancel);
   }
-  return RunHandle(p, out.stream);
+  return h;
 }

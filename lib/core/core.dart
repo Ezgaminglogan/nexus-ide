@@ -9,6 +9,7 @@ export 'run_session.dart';
 export 'raspi.dart';
 export 'runner.dart';
 export 'settings.dart';
+export 'starters.dart';
 export 'stk500.dart';
 export 'toolchains.dart';
 export 'update.dart';

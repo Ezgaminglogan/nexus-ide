@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'arduino.dart';
 import 'raspi.dart';
+import 'workspace.dart' as ws;
 
 /// One command. [tool] is relative to [Toolchains.toolsDir] (no .exe),
 /// or `./name` for a program built inside the workspace.
@@ -37,6 +38,7 @@ class Language {
     this.color = 0xFF3B6BFF,
     this.blurb = '',
     this.description = '',
+    this.folder,
   });
 
   final String id, label, fileName, template;
@@ -49,12 +51,34 @@ class Language {
   final String blurb; // home tile: one-line tagline
   final String description; // home tile: what students do with it, in a sentence or two
   final int color; // home tile / editor accent (ARGB)
+  final String? folder; // workspace folder; null = [id]. Practice copies get their own.
 
-  bool get braces => id != 'python';
+  String get dir => folder ?? id;
+
+  bool get braces => id != 'python' && id != 'raspi'; // Format re-indents by braces, except Python
 
   /// iPhones forbid running compilers (Apple's rule), so only the Web tile works there;
   /// Android needs [androidSteps].
-  bool get availableHere => Platform.isIOS ? id == 'web' : !(Platform.isAndroid && androidSteps == null); // Format re-indents by braces except for Python
+  bool get availableHere => Platform.isIOS ? id == 'web' : !(Platform.isAndroid && androidSteps == null);
+
+  /// The same language in its own folder under workspace/practice/, for lesson examples and
+  /// exercises, so practising never touches the student's project files.
+  Language practice(String name, String title) => Language(
+        id: id,
+        label: title,
+        fileName: fileName,
+        mode: mode,
+        template: template,
+        steps: steps,
+        androidSteps: androidSteps,
+        extraFiles: extraFiles,
+        env: env,
+        words: words,
+        color: color,
+        blurb: blurb,
+        description: description,
+        folder: 'practice/$name/$id', // ends in the id: arduino-cli wants the folder named like the sketch
+      );
 }
 
 /// Where toolchains and student files live.
@@ -103,13 +127,35 @@ class Toolchains {
 
   /// The steps for this platform (or [steps], e.g. an Arduino action), with `{tools}` and
   /// each `{name}` from [vars] filled in.
+  /// `{*.c}` becomes every .c file of the project (main file first), so extra source files are
+  /// compiled with it.
   static List<Step> stepsFor(Language lang, {List<Step>? steps, Map<String, String> vars = const {}}) {
     if (!lang.availableHere) return const [];
     String fill(String a) => vars.entries.fold(a.replaceAll('{tools}', toolsDir), (s, e) => s.replaceAll('{${e.key}}', e.value));
+    List<String> expand(String a) {
+      final m = RegExp(r'^\{\*\.(\w+)\}$').firstMatch(a);
+      return m == null ? [fill(a)] : sourceFiles(lang, m[1]!);
+    }
+
     return [
       for (final s in steps ?? (Platform.isAndroid ? lang.androidSteps ?? const <Step>[] : lang.steps))
-        (tool: s.tool, args: [for (final a in s.args) fill(a)]),
+        (tool: s.tool, args: [for (final a in s.args) ...expand(a)]),
     ];
+  }
+
+  /// The project's .[ext] files, relative with forward slashes, the main file first; generated
+  /// and hidden folders (build, obj, .nexus...) are skipped.
+  static List<String> sourceFiles(Language lang, String ext) {
+    final dir = Directory(p.joinAll([workRoot, ...lang.dir.split('/')]));
+    final found = !dir.existsSync()
+        ? <String>[]
+        : [
+            for (final f in dir.listSync(recursive: true).whereType<File>())
+              if (f.path.endsWith('.$ext'))
+                if (p.relative(f.path, from: dir.path).split(p.separator) case final parts when parts.every(ws.shown)) parts.join('/'),
+          ];
+    found.sort((a, b) => a == lang.fileName ? -1 : b == lang.fileName ? 1 : a.compareTo(b));
+    return found.isEmpty ? [lang.fileName] : found; // nothing saved yet: let the compiler say so
   }
 
   /// Puts the tool's own folder first on PATH (MinGW DLLs, cc1/as/ld lookup).
@@ -162,7 +208,7 @@ final languages = <Language>[
     mode: cpp,
     template: '#include <stdio.h>\n\nint main(void) {\n    printf("Hello, CTU Naga!\\n");\n    return 0;\n}\n',
     steps: [
-      (tool: 'mingw/bin/gcc', args: ['-include', 'nexus_unbuf.h', 'main.c', '-o', 'main']),
+      (tool: 'mingw/bin/gcc', args: ['-include', 'nexus_unbuf.h', '{*.c}', '-o', 'main']),
       (tool: './main', args: []),
     ],
     // Termux's tcc has Termux paths baked in, so switch its defaults off and pass every path.
@@ -171,7 +217,7 @@ final languages = <Language>[
         '-D__ANDROID_API__=24', '-D__ANDROID_MIN_SDK_VERSION__=24', // = app minSdk; NDK headers require it
         '-nostdinc', '-I{tools}/include/aarch64-linux-android', '-I{tools}/include', '-I{tools}/lib/tcc/include',
         '-nostdlib', '-L{tools}/lib', '{tools}/lib/tcc/crt/crtbegin_dynamic.o',
-        '-include', 'nexus_unbuf.h', 'main.c',
+        '-include', 'nexus_unbuf.h', '{*.c}',
         '{tools}/lib/tcc/libtcc1.a', '-lc', '-lm', '-ldl', '{tools}/lib/tcc/crt/crtend_android.o',
         '-o', 'main',
       ]),
@@ -226,13 +272,15 @@ final languages = <Language>[
     mode: java,
     template: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, CTU Naga!");\n    }\n}\n',
     steps: [
-      // JDK 11+ single-file launch: compiles in memory, no separate javac step.
-      (tool: 'jdk/bin/java', args: ['Main.java']),
+      // javac through the java launcher (the bundled JDK may ship no javac.exe), every .java file
+      // together so Main can use Student.java; nothing runs if compiling fails.
+      (tool: 'jdk/bin/java', args: ['-m', 'jdk.compiler/com.sun.tools.javac.Main', '-d', 'classes', '{*.java}']),
+      (tool: 'jdk/bin/java', args: ['-cp', 'classes', 'Main']),
     ],
     // Phones: Termux's ecj compiler + dx, run on Android's own Java VM (no JDK to bundle).
     androidSteps: [
       (tool: _dalvikvm, args: ['-Xmx256m', '-cp', '{tools}/share/dex/ecj.jar', 'org.eclipse.jdt.internal.compiler.batch.Main',
-          '-proc:none', '-8', '-nowarn', '-cp', '{tools}/share/java/android.jar', '-d', 'classes', 'Main.java']),
+          '-proc:none', '-8', '-nowarn', '-cp', '{tools}/share/java/android.jar', '-d', 'classes', '{*.java}']),
       // Android 14+ only loads read-only dex files, so main.dex is replaced, then locked.
       (tool: '/system/bin/rm', args: ['-f', 'main.dex']),
       (tool: _dalvikvm, args: ['-Xmx256m', '-cp', '{tools}/share/dex/dx.jar', 'dx.dx.command.Main',
@@ -256,7 +304,7 @@ final languages = <Language>[
       (tool: 'dotnet/dotnet', args: ['run']),
     ],
     androidSteps: [
-      (tool: 'bin/mono', args: ['{tools}/lib/mono/4.5/mcs.exe', '-nologo', 'Program.cs', '-out:main.exe']),
+      (tool: 'bin/mono', args: ['{tools}/lib/mono/4.5/mcs.exe', '-nologo', '{*.cs}', '-out:main.exe']),
       (tool: 'bin/mono', args: ['main.exe']),
     ],
     extraFiles: {'nexus.csproj': _csproj},
