@@ -65,6 +65,8 @@ void main() {
   Future<void> openPhp(WidgetTester t) async {
     await t.pumpWidget(NexusApp(ready: Future.value()));
     await settle(t);
+    await t.ensureVisible(find.text('Server pages · MySQL'));
+    await settle(t);
     await t.tap(find.text('Server pages · MySQL'));
     await settle(t);
   }
@@ -121,10 +123,39 @@ void main() {
     File('${dir.path}/$stateFile').writeAsStringSync('18 out 1\n17 in 0 up');
     await t.pumpWidget(NexusApp(ready: Future.value()));
     await settle(t);
-    await t.drag(find.byType(CustomScrollView), const Offset(0, -600));
+    await t.ensureVisible(find.text('GPIO simulator · Python'));
     await settle(t);
     await t.tap(find.text('GPIO simulator · Python'));
     await settle(t);
     await shot(t, 'phone_raspi');
+  });
+
+  testWidgets('home (desktop and phone)', (t) async {
+    t.view.physicalSize = const Size(1280, 975);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(NexusApp(ready: Future.value()));
+    await settle(t);
+    await shot(t, 'desktop_home');
+    t.view.physicalSize = const Size(412 * 2.6, 915 * 2.6);
+    t.view.devicePixelRatio = 2.6;
+    await settle(t);
+    await shot(t, 'phone_home');
+  });
+
+  testWidgets("what's new after an update", (t) async {
+    t.view.physicalSize = const Size(1280, 800);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: ThemeData.dark(), home: const Scaffold()));
+    showWhatsNewDialog(
+      t.element(find.byType(Scaffold)),
+      Release.fromJson({
+        'tag_name': 'v1.1.2',
+        'name': 'NEXUS IDE v1.1.2',
+        'published_at': '2026-10-26T08:00:00Z',
+        'body': 'Clearer home screen.\n\n## Improvements\n- **Home:** every tile says what you can do with that language.\n## New Features\n- **What\'s new:** after an update, NEXUS shows this message once.',
+      })!,
+    );
+    await settle(t);
+    await shot(t, 'whats_new');
   });
 }

@@ -10,6 +10,7 @@ NEXUS IDE is a Flutter app (not a web or PHP-hosted app): an Android APK for pho
 | **Project explorer** | A VS Code-style file tree for each language's project: nested folders, new file/folder (several levels at once, like `pages/admin/about.php`), rename, delete (with a warning that says how many files), open in tabs. Sidebar on PCs (hide/show button, drag the edge to resize); a drawer on phones. Visibility, width and open folders are remembered. |
 | **Editor** | The line you're on is tinted; the matching bracket or HTML tag is boxed; a blue edge shows which pane has focus; brighter cursor and selection; a dot on a tab that has unsaved changes; Find (Ctrl+F or the search button) with all matches and the current one highlighted; Ln/Col status bar on PCs. `.php` files now use the HTML grammar, so the HTML is colored and `<?php … ?>` blocks are colored as PHP. |
 | **Raspberry Pi** | The pin panel is now a drawn board with depth: shadow and edge thickness, a lit PCB, mounting holes, chips, USB/Ethernet/HDMI/power ports and the 40-pin header. Pins light up for outputs; input pins can be pressed on the board or with the Hold button. Hovering a pin outlines it. It's a generic Raspberry Pi-style board, not an exact model. |
+| **Home screen** | Each tile shows its name and tagline beside the icon, a sentence or two on what you do with that language, and where it runs (Phone · PC). |
 | **Phones** | **Enter fullscreen** in the ⋮ menu hides Android's status and navigation bars (swipe from the edge to see them; the same menu exits). The explorer is a drawer, less-used actions sit in the ⋮ menu so the file name keeps its room, and the editor respects the safe area and the on-screen keyboard. |
 | **Commands** | `dart run tool/nexus.dart <command>` for running, building and preparing releases (below). |
 
@@ -29,6 +30,7 @@ Run, Verify and Upload always build the language's main file (`main.c`, `index.p
   - *Windows:* NEXUS writes a small script, closes, the script unpacks the zip over the app folder, then starts NEXUS again. This needs a writable app folder (USB drive or a user folder, not `Program Files`).
 - **Your work is safe:** before installing, every open editor saves. Student files and settings live in `workspace/` (settings in `workspace/.nexus/settings.json`, downloads in `workspace/.nexus/updates/`), which an update never replaces. There is no automatic rollback; to go back, install the older release's file.
 - **One dialog:** repeated checks never stack dialogs; "Remind Me Later" hides it for a day.
+- **What's new:** before installing, the updater saves the new release's notes (in settings). On the first launch where the version went up, NEXUS shows "NEXUS IDE is updated to vX" with those notes once, even offline. After a manual install it shows the version and a link to the release page. It needs a previous launch to compare with, so it starts working from the first update after v1.1.2 is installed.
 
 ### Publishing a release the updater will find
 

@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus_ide/core/settings.dart';
+import 'package:nexus_ide/core/toolchains.dart';
 import 'package:nexus_ide/core/update.dart';
 
 Release rel(String tag, {bool pre = false, List<String> assets = const ['nexus-ide-x-arm64.apk', 'nexus-ide-x-windows-x64.zip']}) => Release.fromJson({
@@ -68,5 +70,27 @@ void main() {
     expect(u.claimModal(), isFalse);
     u.releaseModal();
     expect(u.claimModal(), isTrue);
+  });
+
+  test("what's new: once, only after the version went up; saved notes when the updater installed it", () {
+    Toolchains.workRoot = Directory.systemTemp.createTempSync('wn').path;
+    Settings.reset();
+    final u = Updater.instance..current = Version.tryParse('1.1.1');
+    expect(u.takeWhatsNew(), isNull); // first launch ever: just remember 1.1.1
+    expect(u.takeWhatsNew(), isNull); // same version again
+
+    // The updater installs 1.1.2 and saves its notes; the new app starts.
+    Settings.instance.set('update.installed', {'version': '1.1.2', 'title': 'NEXUS IDE v1.1.2', 'date': '2026-10-26T08:00:00Z', 'body': '## Bug Fixes\n- Tabs', 'page': 'https://p'});
+    u.current = Version.tryParse('1.1.2');
+    final r = u.takeWhatsNew()!;
+    expect(r.version.toString(), '1.1.2');
+    expect(parseNotes(r.body).sections['Bug Fixes'], ['Tabs']);
+    expect(u.takeWhatsNew(), isNull); // only once
+
+    // A manual install of 1.2.0 (no saved notes): still announced, with a link instead of notes.
+    u.current = Version.tryParse('1.2.0');
+    final m = u.takeWhatsNew()!;
+    expect(m.body, '');
+    expect(m.page, endsWith('/tag/v1.2.0'));
   });
 }

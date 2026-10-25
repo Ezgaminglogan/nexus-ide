@@ -23,6 +23,49 @@ const _sectionHelp = {
   'Breaking Changes': 'Changes that may need you to do something differently.',
 };
 
+/// Summary plus the New Features / Improvements / Bug Fixes / Breaking Changes sections.
+List<Widget> _notes(String body) {
+  final notes = parseNotes(body);
+  return [
+    Text(notes.summary.isNotEmpty ? notes.summary : notes.sections.isEmpty ? 'No release notes were published for this version.' : 'Here is what changed:'),
+    for (final s in noteSections)
+      if (notes.sections[s] case final items?) ...[
+        const SizedBox(height: 12),
+        Text(s, style: TextStyle(fontWeight: FontWeight.w700, color: s == 'Breaking Changes' ? Nx.stop : null)),
+        Text(_sectionHelp[s]!, style: const TextStyle(fontSize: 12, color: Nx.muted)),
+        for (final i in items) Padding(padding: const EdgeInsets.only(top: 4, left: 8), child: Text('•  $i')),
+      ],
+  ];
+}
+
+/// Shown once after NEXUS was updated: which version is now installed and what it brought.
+Future<void> showWhatsNewDialog(BuildContext context, Release r) => showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.celebration_outlined, color: Nx.run, size: 36),
+        title: Text('NEXUS IDE is updated to ${r.version}'),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text('${r.title}${r.published == null ? '' : ' · released ${_date(r.published)}'}', style: const TextStyle(color: Nx.muted)),
+              const SizedBox(height: 4),
+              const Text('Your files and settings were kept.', style: TextStyle(color: Nx.muted)),
+              const SizedBox(height: 12),
+              if (r.body.isEmpty)
+                const Text('See the release page for the full list of changes.')
+              else
+                ..._notes(r.body),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => launchUrl(Uri.parse(r.page), mode: LaunchMode.externalApplication), child: const Text('View Release Notes')),
+          FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Start coding')),
+        ],
+      ),
+    );
+
 class _UpdateDialog extends StatelessWidget {
   const _UpdateDialog();
 
@@ -34,7 +77,6 @@ class _UpdateDialog extends StatelessWidget {
       builder: (context, _) {
         final r = u.latest;
         if (r == null) return AlertDialog(title: const Text('No update found'), actions: [_close(context)]);
-        final notes = parseNotes(r.body);
         final asset = assetFor(r);
         final restart = Platform.isWindows ? 'NEXUS closes, updates itself and reopens.' : 'Android asks you to confirm, then reinstalls NEXUS.';
         return AlertDialog(
@@ -45,14 +87,7 @@ class _UpdateDialog extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                 Text('${r.title} · released ${_date(r.published)}${r.prerelease ? ' · beta' : ''}', style: const TextStyle(color: Nx.muted)),
                 const SizedBox(height: 12),
-                Text(notes.summary.isNotEmpty ? notes.summary : notes.sections.isEmpty ? 'No release notes were published for this version.' : 'Here is what changed:'),
-                for (final s in noteSections)
-                  if (notes.sections[s] case final items?) ...[
-                    const SizedBox(height: 12),
-                    Text(s, style: TextStyle(fontWeight: FontWeight.w700, color: s == 'Breaking Changes' ? Nx.stop : null)),
-                    Text(_sectionHelp[s]!, style: const TextStyle(fontSize: 12, color: Nx.muted)),
-                    for (final i in items) Padding(padding: const EdgeInsets.only(top: 4, left: 8), child: Text('•  $i')),
-                  ],
+                ..._notes(r.body),
                 const Divider(height: 24),
                 Text(asset == null
                     ? 'This release has no package for ${Platform.operatingSystem}, so it cannot be installed here.'

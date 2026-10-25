@@ -193,6 +193,28 @@ class Updater extends ChangeNotifier {
     }
   }
 
+  /// Once, on the first launch after the version went up: the release now installed (with the
+  /// notes saved by [install], or just the version after a manual install). Null otherwise.
+  Release? takeWhatsNew() {
+    final s = Settings.instance, cur = current;
+    if (cur == null) return null;
+    final last = Version.tryParse(s.get('update.lastRun', ''));
+    final saved = s.get<Map>('update.installed', const {});
+    s.set('update.lastRun', cur.toString());
+    s.set('update.installed', null);
+    if (last == null || !(cur > last)) return null; // first launch ever, or same version
+    final mine = Version.tryParse(saved['version'] as String? ?? '')?.compareTo(cur) == 0;
+    return Release(
+      version: cur,
+      title: mine ? saved['title'] as String : 'NEXUS IDE v$cur',
+      published: mine ? DateTime.tryParse(saved['date'] as String? ?? '') : null,
+      body: mine ? saved['body'] as String : '',
+      prerelease: cur.isPre,
+      assets: const [],
+      page: mine ? saved['page'] as String : '$releasesPage/tag/v$cur',
+    );
+  }
+
   Future<void> check() async {
     if (status == UpdateStatus.checking || status == UpdateStatus.downloading || status == UpdateStatus.verifying) return;
     _set(UpdateStatus.checking);
@@ -286,6 +308,15 @@ class Updater extends ChangeNotifier {
     final file = _file;
     if (file == null) return;
     _set(UpdateStatus.installing);
+    // Remember the notes so the updated app can say what's new, even offline.
+    final r = latest!;
+    Settings.instance.set('update.installed', {
+      'version': r.version.toString(),
+      'title': r.title,
+      'date': r.published?.toIso8601String(),
+      'body': r.body,
+      'page': r.page,
+    });
     for (final save in beforeRestart.toList()) {
       await save();
     }

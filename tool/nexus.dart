@@ -56,14 +56,15 @@ Future<String> buildWin() async {
 }
 
 void bumpPatch() {
-  final m = RegExp(r'^(\d+)\.(\d+)\.(\d+)(?:\+(\d+))?$').firstMatch(version);
+  final old = version;
+  final m = RegExp(r'^(\d+)\.(\d+)\.(\d+)(?:\+(\d+))?$').firstMatch(old);
   if (m == null) {
     stderr.writeln('Can\'t bump "$version": expected x.y.z+n in pubspec.yaml.');
     exit(1);
   }
   final next = '${m[1]}.${m[2]}.${int.parse(m[3]!) + 1}+${int.parse(m[4] ?? '0') + 1}';
   pubspec.writeAsStringSync(pubspec.readAsStringSync().replaceFirst(RegExp(r'^version:\s*\S+', multiLine: true), 'version: $next'));
-  stdout.writeln('Version $version -> $next (pubspec.yaml)');
+  stdout.writeln('Version $old -> $next (pubspec.yaml)');
 }
 
 Future<String> sha256Of(String path) async {

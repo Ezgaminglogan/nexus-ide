@@ -21,7 +21,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    Updater.instance.loadCurrent(); // Settings shows it right away
+    // Settings shows the version right away; after an update, say what's new (once).
+    Updater.instance.loadCurrent().then((_) {
+      final r = Updater.instance.takeWhatsNew();
+      if (r != null && mounted) showWhatsNewDialog(context, r);
+    });
     // Once a day, quietly: offline labs just skip it. Never in widget tests (no network).
     if (!Platform.environment.containsKey('FLUTTER_TEST')) {
       Updater.instance.autoCheck().then((show) {
@@ -52,8 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     gridDelegate: wide
-                        ? const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 240)
-                        : const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, childAspectRatio: 1.15),
+                        ? const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 215)
+                        : const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 12, crossAxisSpacing: 12, mainAxisExtent: 215),
                     children: [for (final l in languages) _LanguageTile(l)],
                   ),
                   const SizedBox(height: 24),
@@ -190,24 +194,36 @@ class _LanguageTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Name and tagline beside the icon, what you do with it below, where it runs at the bottom.
               Row(
                 children: [
-                  LanguageBadge(lang, size: big ? 64 : 40),
-                  const Spacer(),
-                  if (pcOnly)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: Nx.line, borderRadius: BorderRadius.circular(99)),
-                      child: Text(Platform.isIOS ? 'Android & PC' : 'PC only', style: TextStyle(fontSize: 10.5, color: Nx.muted)),
-                    ),
+                  LanguageBadge(lang, size: big ? 56 : 38),
+                  SizedBox(width: big ? 14 : 10),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(lang.label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: big ? 24 : 16, fontWeight: FontWeight.w700)),
+                      Text(lang.blurb, maxLines: big ? 1 : 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: big ? 14 : 11, height: 1.25, color: color)),
+                    ]),
+                  ),
                 ],
               ),
-              const Spacer(),
-              Text(lang.label, style: TextStyle(fontSize: big ? 26 : 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 2),
-              Text(lang.blurb, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: big ? 15 : 12, color: Nx.muted)),
-              const SizedBox(height: 6),
-              Container(height: 3, width: 28, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+              SizedBox(height: big ? 14 : 8),
+              Expanded(
+                child: Text(
+                  lang.description,
+                  maxLines: big ? 4 : 7,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: big ? 14.5 : 12, height: 1.4, color: const Color(0xFFC3CBE0)),
+                ),
+              ),
+              Row(children: [
+                Container(height: 3, width: 28, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                const Spacer(),
+                Text(
+                  pcOnly ? (Platform.isIOS ? 'Android & PC' : 'PC only') : (lang.androidSteps != null ? 'Phone · PC' : 'PC'),
+                  style: TextStyle(fontSize: big ? 12 : 10.5, color: Nx.muted),
+                ),
+              ]),
             ],
           ),
         ),

@@ -36,6 +36,7 @@ class Language {
     this.words = const [],
     this.color = 0xFF3B6BFF,
     this.blurb = '',
+    this.description = '',
   });
 
   final String id, label, fileName, template;
@@ -45,7 +46,8 @@ class Language {
   final Map<String, String> extraFiles; // written into the workspace if missing
   final Map<String, String> Function(String toolsDir)? env;
   final List<String> words; // extra autocomplete (std library names)
-  final String blurb; // home tile: one-line description
+  final String blurb; // home tile: one-line tagline
+  final String description; // home tile: what students do with it, in a sentence or two
   final int color; // home tile / editor accent (ARGB)
 
   bool get braces => id != 'python';
@@ -154,6 +156,7 @@ final languages = <Language>[
     id: 'c',
     color: 0xFF3B6BFF,
     blurb: 'Programming fundamentals',
+    description: 'Variables, loops, functions and arrays. Read input with scanf, print with printf, and see the result right away.',
     label: 'C',
     fileName: 'main.c',
     mode: cpp,
@@ -181,6 +184,7 @@ final languages = <Language>[
     id: 'arduino',
     color: 0xFF00979D,
     blurb: 'Sketch · Verify · Upload',
+    description: 'Blink LEDs and read sensors on an Uno or Nano. Verify the sketch, upload it over USB (an OTG cable on phones) and watch the Serial Monitor.',
     label: 'Arduino',
     fileName: 'arduino.ino', // arduino-cli needs the sketch file named like its folder
     mode: cpp,
@@ -199,6 +203,7 @@ final languages = <Language>[
     id: 'python',
     color: 0xFFF2C230,
     blurb: 'Scripts and data',
+    description: 'Small programs that ask for input, do math and work with lists and text. A friendly first language for problem solving.',
     label: 'Python',
     fileName: 'main.py',
     mode: python,
@@ -215,6 +220,7 @@ final languages = <Language>[
     id: 'java',
     color: 0xFFE76F00,
     blurb: 'Object-oriented',
+    description: 'Classes, objects and methods in Main.java. Use Scanner for input; it compiles and runs here on a phone or a lab PC.',
     label: 'Java',
     fileName: 'Main.java',
     mode: java,
@@ -240,6 +246,7 @@ final languages = <Language>[
     id: 'csharp',
     color: 0xFF8E5BD8,
     blurb: '.NET console apps',
+    description: 'Console apps with classes, lists and Console.ReadLine. The same code opens later in Visual Studio.',
     label: 'C#',
     fileName: 'Program.cs',
     mode: cs,
@@ -270,6 +277,7 @@ final languages = <Language>[
     id: 'web',
     color: 0xFFE44D26,
     blurb: 'HTML · CSS · JS · Designer',
+    description: 'Build web pages by dragging blocks in the designer or by writing HTML, CSS and JavaScript, then preview them.',
     label: 'Web',
     fileName: 'index.html',
     mode: xml,
@@ -283,6 +291,7 @@ final languages = <Language>[
     id: 'php',
     color: 0xFF777BB4,
     blurb: 'Server pages · MySQL',
+    description: 'Forms that save to a MySQL database, like a guest book or a login page. Serve the project, then open it in the preview.',
     label: 'PHP',
     fileName: 'index.php',
     mode: xml, // HTML with <?php ?> blocks highlighted as PHP (languages registered in main.dart)
@@ -303,6 +312,7 @@ final languages = <Language>[
     id: 'raspi',
     color: 0xFFC51A4A,
     blurb: 'GPIO simulator · Python',
+    description: 'Blink LEDs and read buttons with the same RPi.GPIO code a real Raspberry Pi runs, on a live drawn board.',
     label: 'Raspberry Pi',
     fileName: 'main.py',
     mode: python,
