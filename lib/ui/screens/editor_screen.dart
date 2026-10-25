@@ -2,12 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart' hide Step;
 import 'package:flutter/services.dart';
+import 'package:highlight/languages/cpp.dart';
+import 'package:highlight/languages/cs.dart';
 import 'package:highlight/languages/css.dart';
+import 'package:highlight/languages/java.dart';
 import 'package:highlight/languages/javascript.dart';
-import 'package:highlight/languages/php.dart';
+import 'package:highlight/languages/python.dart';
 import 'package:highlight/languages/xml.dart';
 
 import '../../core/core.dart';
+import '../widgets/explorer.dart';
 import '../widgets/raspi_panel.dart';
 import '../widgets/web_designer.dart';
 import '../widgets/widgets.dart';
@@ -41,62 +45,142 @@ class _EditorScreenState extends State<EditorScreen> {
   late final File _designFile = File('${RunSession.workDir(_lang).path}/design.json');
   late final List<DesignRow> _rows = _designFile.existsSync() ? designFromJson(_designFile.readAsStringSync()) : [];
 
-  // The open file; Web and PHP folders can hold more (VS Code-style tabs).
+  // Open files (VS Code-style tabs; paths relative to the workspace folder) and what each held when
+  // last saved, so a changed tab shows a dot. Switching tabs saves, so nothing is ever lost.
   late String _file = _lang.fileName;
-  bool get _multi => _web || _php;
-  static final _exts = {'html': xml, 'css': css, 'js': javascript, 'php': php};
+  late final _tabs = <String>[_lang.fileName];
+  late final _saved = <String, String>{_lang.fileName: _code.fullText};
+  bool _dirty = false;
+  late final String _root = RunSession.workDir(_lang).path;
+  static final _modes = {'html': xml, 'htm': xml, 'php': xml, 'css': css, 'js': javascript, 'py': python, 'java': java, 'cs': cs, 'c': cpp, 'h': cpp, 'ino': cpp};
 
-  List<String> get _files {
-    final dir = RunSession.workDir(_lang);
-    final names = dir.existsSync()
-        ? [for (final f in dir.listSync().whereType<File>()) f.uri.pathSegments.last].where((n) => _exts.containsKey(n.split('.').last)).toList()
-        : <String>[];
-    return {_lang.fileName, ...names..sort(), _file}.toList(); // main file first
+  // Explorer: sidebar on PCs (toggle + drag to resize), drawer on phones. Remembered in settings.
+  late bool _explorer = Settings.instance.get('explorer.visible', true);
+  late double _explorerWidth = Settings.instance.get<num>('explorer.width', 250).toDouble();
+  late final _expanded = Settings.instance.get<List>('explorer.expanded.${_lang.id}', const []).cast<String>().toSet();
+  void _saveExpanded() => Settings.instance.set('explorer.expanded.${_lang.id}', _expanded.toList());
+
+  bool _fullscreen = false; // phones: hide the status and navigation bars
+
+  void _textChanged() {
+    final d = _code.fullText != _saved[_file];
+    if (d != _dirty) setState(() => _dirty = d);
   }
 
-  Future<void> _open(String file) async {
-    await RunSession.save(_lang, _code.fullText, _file);
+  Future<void> _saveNow() async {
+    final text = _code.fullText;
+    await RunSession.save(_lang, text, _file);
+    _saved[_file] = text;
+    if (mounted) setState(() => _dirty = false);
+  }
+
+  Future<void> _open(String rel) async {
+    if (rel == _file) return;
+    String text;
+    try {
+      text = RunSession.load(_lang, rel);
+    } on FileSystemException {
+      return _say('$rel can\'t be opened as text.');
+    } on FormatException {
+      return _say('$rel isn\'t a text file, so it can\'t be edited here.');
+    }
+    await _saveNow();
     setState(() {
-      _file = file;
+      if (!_tabs.contains(rel)) _tabs.add(rel);
+      _file = rel;
       _design = false;
+      _saved[rel] = text;
     });
     _code
-      ..language = _exts[file.split('.').last] ?? _lang.mode
-      ..fullText = RunSession.load(_lang, file);
+      ..language = _modes[rel.split('.').last.toLowerCase()] ?? _lang.mode
+      ..fullText = text;
   }
 
-  Future<void> _newFile() async {
-    final name = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New file'),
-        content: TextField(
-          controller: name,
-          autofocus: true,
-          decoration: InputDecoration(hintText: _php ? 'about.php' : 'style.css', helperText: '.html  .css  .js  .php'),
-          onSubmitted: (_) => Navigator.pop(context, true),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Create')),
-        ],
-      ),
-    );
-    final file = name.text.trim();
-    if (ok != true || file.isEmpty) return;
-    // Plain names only: no folders, so a student can't write outside the workspace.
-    if (!RegExp(r'^[\w-]+\.(html|css|js|php)$').hasMatch(file)) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Use a name like page.html, style.css, app.js or about.php')));
-      return;
-    }
-    final f = File('${RunSession.workDir(_lang).path}/$file');
-    if (!f.existsSync()) f..createSync(recursive: true)..writeAsStringSync('');
-    await _open(file);
+  Future<void> _closeTab(String rel) async {
+    if (rel == _lang.fileName) return; // the file NEXUS runs stays open
+    if (rel == _file) await _open(_tabs[_tabs.indexOf(rel) - 1]); // saves it first
+    setState(() => _tabs.remove(rel));
   }
+
+  void _say(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+  void _renamed(String from, String to) => setState(() {
+        for (var i = 0; i < _tabs.length; i++) {
+          if (_tabs[i] == from || _tabs[i].startsWith('$from/')) _tabs[i] = to + _tabs[i].substring(from.length);
+        }
+        if (_file == from || _file.startsWith('$from/')) {
+          _saved[to + _file.substring(from.length)] = _saved.remove(_file) ?? '';
+          _file = to + _file.substring(from.length);
+        }
+        if (_expanded.remove(from)) _expanded.add(to);
+      });
+
+  /// A deleted file (or folder) closes its tabs without saving them back.
+  void _deleted(String rel) {
+    final gone = _tabs.where((t) => t == rel || t.startsWith('$rel/')).toList();
+    if (gone.contains(_file)) {
+      _saved[_file] = _code.fullText; // don't write the deleted file back
+      final keep = _tabs.firstWhere((t) => !gone.contains(t));
+      _file = keep; // _open below would save the deleted file; switch directly
+      _code
+        ..language = _modes[keep.split('.').last.toLowerCase()] ?? _lang.mode
+        ..fullText = RunSession.load(_lang, keep);
+      _saved[keep] = _code.fullText;
+    }
+    setState(() => _tabs.removeWhere(gone.contains));
+  }
+
+  void _toggleFullscreen() {
+    setState(() => _fullscreen = !_fullscreen);
+    SystemChrome.setEnabledSystemUIMode(_fullscreen ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge);
+  }
+
+  Widget _explorerPanel() => Explorer(
+        root: _root,
+        project: '${_lang.label} project',
+        mainFile: _lang.fileName,
+        selected: _file,
+        expanded: _expanded,
+        onOpen: (rel) {
+          _open(rel);
+          if (MediaQuery.sizeOf(context).width < 900) Navigator.of(context).maybePop(); // close the drawer
+        },
+        onRenamed: _renamed,
+        onDeleted: _deleted,
+        onExpandedChanged: _saveExpanded,
+      );
+
+  Widget _tabStrip() => Container(
+        height: 38,
+        color: const Color(0xFF10162A),
+        child: ListView(scrollDirection: Axis.horizontal, children: [
+          for (final t in _tabs)
+            Material(
+              color: t == _file ? const Color(0xFF151A28) : Colors.transparent,
+              child: InkWell(
+                onTap: () => _open(t),
+                child: Container(
+                  padding: const EdgeInsets.only(left: 12, right: 4),
+                  decoration: BoxDecoration(border: Border(top: BorderSide(color: t == _file ? Color(_lang.color) : Colors.transparent, width: 2))),
+                  child: Row(children: [
+                    Text(t.split('/').last, style: TextStyle(fontSize: 13, color: t == _file ? Colors.white : Nx.muted)),
+                    if (t == _file && _dirty)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 6),
+                        child: Tooltip(message: 'Not saved yet (Ctrl+S, Run, or switching tabs saves)', child: Icon(Icons.circle, size: 9, color: Colors.white)),
+                      ),
+                    t == _lang.fileName
+                        ? const SizedBox(width: 10)
+                        : IconButton(tooltip: 'Close ${t.split('/').last}', iconSize: 15, visualDensity: VisualDensity.compact, onPressed: () => _closeTab(t), icon: const Icon(Icons.close)),
+                  ]),
+                ),
+              ),
+            ),
+        ]),
+      );
 
   Future<void> _preview() async {
-    await RunSession.save(_lang, _code.fullText, _file);
+    await _saveNow();
     // The open page if it is one, else the main page.
     if (_php) return mounted ? openPreview(context, Uri.parse('$phpUrl${_file.endsWith('.php') ? _file : ''}')) : null;
     final page = _file.endsWith('.html') ? _file : _lang.fileName;
@@ -105,8 +189,15 @@ class _EditorScreenState extends State<EditorScreen> {
 
   void _designChanged() {
     _code.fullText = designToHtml(_rows);
-    RunSession.save(_lang, _code.fullText);
+    _saveNow();
     _designFile.writeAsStringSync(designToJson(_rows));
+  }
+
+  /// Saves the open tab, then returns the main file's code: Run/Verify/Upload always build the
+  /// file NEXUS runs, whichever tab is open.
+  Future<String> _main() async {
+    await _saveNow();
+    return RunSession.load(_lang);
   }
 
   // The terminal shows only while something runs or has printed; clearing it hides it.
@@ -122,6 +213,8 @@ class _EditorScreenState extends State<EditorScreen> {
     _session
       ..addListener(_consoleChanged)
       ..console.addListener(_consoleChanged);
+    _code.addListener(_textChanged);
+    beforeRestart.add(_saveNow); // an update restart saves this editor first
     if (_arduino) _refreshPorts();
   }
 
@@ -142,7 +235,7 @@ class _EditorScreenState extends State<EditorScreen> {
   static final _phone = Platform.isAndroid;
 
   /// Phone build steps, after writing what they compile; null (with a message) if this board can't.
-  List<Step>? _phoneBuild() {
+  List<Step>? _phoneBuild(String code) {
     if (_board.otgBaud == null) {
       _session.console
         ..clear()
@@ -150,17 +243,18 @@ class _EditorScreenState extends State<EditorScreen> {
       return null;
     }
     final dir = Directory('${RunSession.workDir(_lang).path}/build')..createSync(recursive: true);
-    File('${dir.path}/sketch.cpp').writeAsStringSync(sketchCpp(_code.fullText));
+    File('${dir.path}/sketch.cpp').writeAsStringSync(sketchCpp(code));
     return phoneBuildSteps;
   }
 
-  void _run() {
-    if (!_session.running) _session.run(_lang, _code.fullText, file: _file);
+  Future<void> _run() async {
+    if (!_session.running) _session.run(_lang, await _main());
   }
 
-  void _verify() {
-    final steps = _phone ? _phoneBuild() : verifySteps;
-    if (steps != null) _session.run(_lang, _code.fullText, steps: steps, vars: _vars, runLabel: 'Verifying sketch…');
+  Future<void> _verify() async {
+    final code = await _main();
+    final steps = _phone ? _phoneBuild(code) : verifySteps;
+    if (steps != null) _session.run(_lang, code, steps: steps, vars: _vars, runLabel: 'Verifying sketch…');
   }
 
   void _needPort(void Function() action) {
@@ -171,23 +265,25 @@ class _EditorScreenState extends State<EditorScreen> {
     _refreshPorts();
   }
 
-  void _upload() => _needPort(() {
+  void _upload() => _needPort(() async {
         final label = 'Uploading to ${_board.name} on $_port…';
+        final code = await _main();
         if (!_phone) {
-          _session.run(_lang, _code.fullText, steps: uploadSteps, vars: _vars, runLabel: label);
+          _session.run(_lang, code, steps: uploadSteps, vars: _vars, runLabel: label);
           return;
         }
-        final steps = _phoneBuild();
+        final steps = _phoneBuild(code);
         if (steps == null) return;
-        final hex = '${RunSession.workDir(_lang).path}/$phoneHex';
-        _session.run(_lang, _code.fullText, steps: steps, vars: _vars, runLabel: label, then: otgUpload(_port!, {_board.otgBaud!, 115200, 57600}.toList(), hex));
+        final hex = '$_root/$phoneHex';
+        _session.run(_lang, code, steps: steps, vars: _vars, runLabel: label, then: otgUpload(_port!, {_board.otgBaud!, 115200, 57600}.toList(), hex));
       });
 
-  void _monitor() => _needPort(() {
+  void _monitor() => _needPort(() async {
         final label = 'Serial Monitor on $_port @ $_baud baud (press Stop to close)';
+        final code = await _main();
         _phone
-            ? _session.run(_lang, _code.fullText, steps: const [], runLabel: label, then: otgMonitor(_port!, _baud))
-            : _session.run(_lang, _code.fullText, steps: monitorSteps, vars: _vars, runLabel: label);
+            ? _session.run(_lang, code, steps: const [], runLabel: label, then: otgMonitor(_port!, _baud))
+            : _session.run(_lang, code, steps: monitorSteps, vars: _vars, runLabel: label);
       });
 
   void _format() => _code.format(braces: _lang.braces);
@@ -195,6 +291,8 @@ class _EditorScreenState extends State<EditorScreen> {
   @override
   void dispose() {
     RunSession.save(_lang, _code.fullText, _file);
+    beforeRestart.remove(_saveNow);
+    if (_fullscreen) SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _session.dispose();
     _code.dispose();
     super.dispose();
@@ -214,7 +312,20 @@ class _EditorScreenState extends State<EditorScreen> {
     return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       _rail(context),
       const VerticalDivider(width: 1, color: Nx.line),
-      Expanded(child: Column(children: editor)),
+      if (_explorer) ...[
+        SizedBox(width: _explorerWidth, child: _explorerPanel()),
+        // Drag to resize the explorer (remembered).
+        MouseRegion(
+          cursor: SystemMouseCursors.resizeColumn,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragUpdate: (d) => setState(() => _explorerWidth = (_explorerWidth + d.delta.dx).clamp(170, 480)),
+            onHorizontalDragEnd: (_) => Settings.instance.set('explorer.width', _explorerWidth),
+            child: Container(width: 5, color: const Color(0xFF111729), alignment: Alignment.center, child: const VerticalDivider(width: 1, color: Nx.line)),
+          ),
+        ),
+      ],
+      Expanded(child: Column(children: [...editor, _statusBar()])),
       if (console != null || pi != null) ...[
         const VerticalDivider(width: 1, color: Nx.line),
         SizedBox(
@@ -223,6 +334,25 @@ class _EditorScreenState extends State<EditorScreen> {
         ),
       ],
     ]);
+  }
+
+  /// Ln/Col and what Ctrl+F does, under the editor on PCs.
+  Widget _statusBar() => ListenableBuilder(listenable: _code, builder: (context, _) => _statusLine());
+
+  Widget _statusLine() {
+    final sel = _code.selection;
+    final before = sel.isValid ? _code.text.substring(0, sel.baseOffset.clamp(0, _code.text.length)) : '';
+    final line = '\n'.allMatches(before).length + 1, col = before.length - before.lastIndexOf('\n');
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      color: const Color(0xFF10162A),
+      child: Row(children: [
+        Text('Ln $line, Col $col', style: const TextStyle(fontSize: 12, color: Nx.muted)),
+        const Spacer(),
+        Text('${_file.split('.').last.toUpperCase()} · Ctrl+F find · Ctrl+S save · F5 run', style: const TextStyle(fontSize: 12, color: Nx.muted)),
+      ]),
+    );
   }
 
   Widget _rail(BuildContext context) => Container(
@@ -263,12 +393,14 @@ class _EditorScreenState extends State<EditorScreen> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.f5): _arduino ? _upload : (_web ? _preview : _run),
         const SingleActivator(LogicalKeyboardKey.keyF, shift: true, alt: true): _format,
-        const SingleActivator(LogicalKeyboardKey.keyS, control: true): () => RunSession.save(_lang, _code.fullText, _file),
+        const SingleActivator(LogicalKeyboardKey.keyS, control: true): _saveNow,
       },
       child: ListenableBuilder(
         listenable: _session,
         builder: (context, _) => Scaffold(
+          drawer: MediaQuery.sizeOf(context).width < 900 ? Drawer(width: 300, child: SafeArea(child: _explorerPanel())) : null,
           appBar: AppBar(
+            leading: const BackButton(),
             titleSpacing: 0,
             title: Row(children: [
               LanguageBadge(_lang, size: 26),
@@ -276,7 +408,46 @@ class _EditorScreenState extends State<EditorScreen> {
               Flexible(child: Text(_file, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontFamily: 'Consolas', fontFamilyFallback: ['monospace']))),
             ]),
             actions: [
-              IconButton(tooltip: 'Format (Shift+Alt+F)', onPressed: _format, icon: const Icon(Icons.auto_fix_high_rounded)),
+              Builder(
+                builder: (context) => IconButton(
+                  tooltip: 'Files (explorer)',
+                  isSelected: _explorer,
+                  onPressed: () {
+                    if (MediaQuery.sizeOf(context).width < 900) return Scaffold.of(context).openDrawer();
+                    setState(() => _explorer = !_explorer);
+                    Settings.instance.set('explorer.visible', _explorer);
+                  },
+                  icon: const Icon(Icons.folder_open_outlined),
+                ),
+              ),
+              // Phones: the less frequent actions live in a ⋮ menu so the file name keeps its room.
+              if (MediaQuery.sizeOf(context).width >= 600) ...[
+                if (!_design) IconButton(tooltip: 'Find (Ctrl+F)', onPressed: _code.showSearch, icon: const Icon(Icons.search)),
+                if (_dirty) IconButton(tooltip: 'Save (Ctrl+S)', onPressed: _saveNow, icon: const Icon(Icons.save_outlined)),
+                if (Platform.isAndroid || Platform.isIOS)
+                  IconButton(
+                    tooltip: _fullscreen ? 'Exit fullscreen' : 'Enter fullscreen',
+                    onPressed: _toggleFullscreen,
+                    icon: Icon(_fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
+                  ),
+                IconButton(tooltip: 'Format (Shift+Alt+F)', onPressed: _format, icon: const Icon(Icons.auto_fix_high_rounded)),
+              ] else
+                PopupMenuButton<VoidCallback>(
+                  tooltip: 'More actions',
+                  onSelected: (action) => action(),
+                  itemBuilder: (_) => [
+                    if (!_design) PopupMenuItem(value: _code.showSearch, child: const ListTile(leading: Icon(Icons.search), title: Text('Find'))),
+                    if (_dirty) PopupMenuItem(value: _saveNow, child: const ListTile(leading: Icon(Icons.save_outlined), title: Text('Save'))),
+                    PopupMenuItem(
+                      value: _toggleFullscreen,
+                      child: ListTile(
+                        leading: Icon(_fullscreen ? Icons.fullscreen_exit : Icons.fullscreen),
+                        title: Text(_fullscreen ? 'Exit fullscreen' : 'Enter fullscreen'),
+                      ),
+                    ),
+                    PopupMenuItem(value: _format, child: const ListTile(leading: Icon(Icons.auto_fix_high_rounded), title: Text('Format code'))),
+                  ],
+                ),
               if (_arduino)
                 IconButton(tooltip: 'Verify (compile)', onPressed: _session.running ? null : _verify, icon: const Icon(Icons.check_circle_outline_rounded)),
               if (_php)
@@ -291,7 +462,7 @@ class _EditorScreenState extends State<EditorScreen> {
               ),
             ],
           ),
-          body: _layout(context, [
+          body: SafeArea(top: false, child: _layout(context, [
             if (_arduino)
               ArduinoBar(
                 board: _board,
@@ -307,18 +478,7 @@ class _EditorScreenState extends State<EditorScreen> {
                 onRefresh: _refreshPorts,
                 onMonitor: _monitor,
               ),
-            if (_multi)
-              SizedBox(
-                height: 40,
-                child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 8), children: [
-                  for (final f in _files)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6, top: 4),
-                      child: ChoiceChip(label: Text(f), selected: f == _file, onSelected: (_) => f == _file ? null : _open(f)),
-                    ),
-                  IconButton(tooltip: 'New file', onPressed: _newFile, icon: const Icon(Icons.note_add_outlined, size: 20)),
-                ]),
-              ),
+            _tabStrip(),
             if (_web && _file == _lang.fileName)
               Padding(
                 padding: const EdgeInsets.all(8),
@@ -337,7 +497,7 @@ class _EditorScreenState extends State<EditorScreen> {
               Expanded(flex: 3, child: CodePane(controller: _code)),
               if (Platform.isAndroid || Platform.isIOS) KeyBar(controller: _code, braces: _lang.braces),
             ],
-          ]),
+          ])),
         ),
       ),
     );

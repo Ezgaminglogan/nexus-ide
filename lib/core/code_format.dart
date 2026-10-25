@@ -122,3 +122,39 @@ TextEditingValue? smartNewline(TextEditingValue oldV, TextEditingValue newV) {
     selection: TextSelection.collapsed(offset: caret + inner.length),
   );
 }
+
+/// What to highlight around the caret: a bracket and its partner, or an HTML tag name and the
+/// name in its matching open/close tag. Returns (start, end) ranges; empty when nothing matches.
+/// ponytail: brackets inside strings/comments still count; fine for highlighting, not for parsing.
+List<(int, int)> matchingPair(String text, int caret) {
+  const open = '([{', close = ')]}';
+  for (final at in [caret - 1, caret]) {
+    if (at < 0 || at >= text.length) continue;
+    final c = text[at];
+    final o = open.indexOf(c), cl = close.indexOf(c);
+    if (o < 0 && cl < 0) continue;
+    final dir = o >= 0 ? 1 : -1, me = c, partner = o >= 0 ? close[o] : open[cl];
+    var depth = 0;
+    for (var i = at; i >= 0 && i < text.length; i += dir) {
+      if (text[i] == me) depth++;
+      if (text[i] == partner && --depth == 0) return [(at, at + 1), (i, i + 1)];
+    }
+    return const [];
+  }
+  final tags = RegExp(r'<(/?)([A-Za-z][\w-]*)').allMatches(text).toList();
+  final here = tags.where((m) => m.start <= caret && caret <= m.end).firstOrNull;
+  if (here == null || _voidTags.contains(here[2]!.toLowerCase())) return const [];
+  final name = here[2]!, closing = here[1] == '/';
+  var depth = 0;
+  final scan = closing ? tags.reversed.where((m) => m.start <= here.start) : tags.where((m) => m.start >= here.start);
+  for (final m in scan) {
+    if (m[2] != name) continue;
+    final isClose = m[1] == '/';
+    if (isClose == closing) {
+      depth++;
+    } else if (--depth == 0) {
+      return [(here.start + 1 + here[1]!.length, here.end), (m.start + 1 + m[1]!.length, m.end)];
+    }
+  }
+  return const [];
+}

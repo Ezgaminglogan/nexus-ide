@@ -6,6 +6,7 @@ import 'ui/theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  registerHighlighting(); // HTML/PHP: CSS, JS and PHP inside the page
   runApp(NexusApp(ready: Toolchains.init()));
 }
 

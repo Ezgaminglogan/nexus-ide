@@ -2,10 +2,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
-import 'package:highlight/highlight_core.dart' show Mode;
+import 'package:highlight/highlight_core.dart' show Mode, highlight;
+import 'package:highlight/languages/css.dart';
 import 'package:highlight/languages/cpp.dart';
 import 'package:highlight/languages/cs.dart';
 import 'package:highlight/languages/java.dart';
+import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/php.dart';
 import 'package:highlight/languages/python.dart';
 import 'package:highlight/languages/xml.dart';
@@ -283,7 +285,7 @@ final languages = <Language>[
     blurb: 'Server pages · MySQL',
     label: 'PHP',
     fileName: 'index.php',
-    mode: php,
+    mode: xml, // HTML with <?php ?> blocks highlighted as PHP (languages registered in main.dart)
     template: _phpTemplate,
     // Serves the folder at [phpUrl] until Stop. PC: portable PHP in toolchains/php (or PATH);
     // MySQL from XAMPP or a portable MariaDB.
@@ -389,3 +391,12 @@ try {
 </body>
 </html>
 ''';
+
+/// HTML and PHP files use the xml mode, which hands `<?php ?>` blocks to the PHP grammar by name,
+/// so register it (and CSS/JS for the same reason).
+/// ponytail: the highlight package leaves <style>/<script> contents plain (its sub-language switch
+/// doesn't fire there); separate .css/.js files are highlighted. Fix upstream or swap packages if it matters.
+void registerHighlighting() => highlight
+  ..registerLanguage('php', php)
+  ..registerLanguage('css', css)
+  ..registerLanguage('javascript', javascript);

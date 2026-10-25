@@ -6,10 +6,29 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/core.dart';
 import '../theme.dart';
+import '../widgets/update_dialog.dart';
 import 'editor_screen.dart';
+import 'settings_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Updater.instance.loadCurrent(); // Settings shows it right away
+    // Once a day, quietly: offline labs just skip it. Never in widget tests (no network).
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      Updater.instance.autoCheck().then((show) {
+        if (show && mounted) showUpdateDialog(context);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +152,17 @@ class _Header extends StatelessWidget {
                 ],
               ),
             ],
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: SafeArea(
+            child: IconButton.filledTonal(
+              tooltip: 'Settings and updates',
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+              icon: const Icon(Icons.settings_outlined),
+            ),
           ),
         ),
       ],

@@ -33,7 +33,7 @@ void main() {
     await tester.tap(find.text('Programming fundamentals'));
     await tester.pumpAndSettle();
 
-    expect(find.text('main.c'), findsOneWidget);
+    expect(find.text('main.c'), findsWidgets); // title + tab
     expect(find.text('Run (F5)'), findsOneWidget);
     expect(find.textContaining('Hello, CTU Naga!', findRichText: true), findsWidgets);
   });
@@ -47,7 +47,7 @@ void main() {
     await tester.tap(find.text('Sketch · Verify · Upload'));
     await tester.pumpAndSettle();
 
-    expect(find.text('arduino.ino'), findsOneWidget);
+    expect(find.text('arduino.ino'), findsWidgets); // title + tab
     expect(find.text('Upload'), findsOneWidget);
     expect(find.text('Arduino Uno'), findsOneWidget);
     expect(find.text('Serial Monitor'), findsOneWidget);
@@ -73,28 +73,37 @@ void main() {
     expect(find.textContaining('<h1 style="color: #222222">My Heading</h1>', findRichText: true), findsWidgets);
   });
 
-  testWidgets('PHP: terminal hidden until a run; New file adds a tab and opens it', (tester) async {
+  testWidgets('PHP: terminal hidden until a run; explorer makes nested files, opens them in tabs, hides and remembers', (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+    Settings.reset();
     await tester.pumpWidget(NexusApp(ready: Future.value()));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Server pages · MySQL'));
     await tester.pumpAndSettle();
 
     expect(find.text('TERMINAL'), findsNothing);
+    expect(find.text('PHP PROJECT'), findsOneWidget); // explorer sidebar on a wide screen
     await tester.tap(find.byTooltip('New file'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'about.php');
-    await tester.tap(find.text('Create'));
+    await tester.enterText(find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField)), 'pages/admin/about.php');
+    await tester.tap(find.text('OK'));
     for (var i = 0; i < 5; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50))); // real file IO in _open
       await tester.pump();
     }
 
-    expect(find.widgetWithText(ChoiceChip, 'about.php'), findsOneWidget);
-    expect(find.widgetWithText(ChoiceChip, 'index.php'), findsOneWidget);
-    expect(File('${Toolchains.workRoot}/php/about.php').existsSync(), isTrue);
+    expect(File('${Toolchains.workRoot}/php/pages/admin/about.php').existsSync(), isTrue);
+    expect(find.text('about.php'), findsWidgets); // tree row + open tab
+    expect(find.text('admin'), findsOneWidget); // folders opened on the way
+
+    await tester.tap(find.byTooltip('Files (explorer)'));
+    await tester.pumpAndSettle();
+    expect(find.text('PHP PROJECT'), findsNothing);
+    expect(Settings.instance.get('explorer.visible', true), isFalse);
+    await tester.tap(find.byTooltip('Files (explorer)'));
+    await tester.pumpAndSettle();
+    expect(find.text('PHP PROJECT'), findsOneWidget);
   });
 }
-

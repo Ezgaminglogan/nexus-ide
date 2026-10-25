@@ -39,7 +39,13 @@ The Flutter UI saves the student's file, then runs real compilers as child proce
 - **Arduino upload on phones** speaks the STK500 bootloader protocol in Dart over USB OTG (`lib/core/stk500.dart`, `otg.dart`), with a patched `usb_serial` plugin in `packages/`.
 - **Lab PCs:** portable toolchains sit in a `toolchains/` folder next to `nexus_ide.exe` (e.g. on a USB drive). Missing tools fall back to the same program on `PATH`.
 
+## Updates
+
+Settings (the gear on the home screen) → Updates checks this repository's releases, shows what changed, downloads the right file for your device, checks its SHA-256 and installs it. Details: [docs/NEXUS_IDE_IMPROVEMENTS.md](docs/NEXUS_IDE_IMPROVEMENTS.md).
+
 ## Build from source
+
+Project commands (run, build, prepare a release) are in `tool/nexus.dart`: `dart run tool/nexus.dart` lists them. The short version:
 
 Needs the Flutter SDK, the Android SDK, and Python 3.14+.
 

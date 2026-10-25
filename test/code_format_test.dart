@@ -123,4 +123,22 @@ try {
       expect(smartNewline(at('ab'), at('abc')), isNull);
     });
   });
+
+  group('matchingPair', () {
+    test('brackets: next to the caret, either side, nested', () {
+      const t = 'f(a[1], {b})';
+      expect(matchingPair(t, 2), [(1, 2), (11, 12)]); // after "("
+      expect(matchingPair(t, 12), [(11, 12), (1, 2)]); // after the last ")"
+      expect(matchingPair(t, 8), [(8, 9), (10, 11)]); // before "{"
+      expect(matchingPair('(()', 1), isEmpty); // unbalanced
+    });
+
+    test('tags: the matching open/close name, nested same-name tags, void tags ignored', () {
+      const t = '<div><div>x</div></div><br>';
+      expect(matchingPair(t, 2), [(1, 4), (19, 22)]); // outer <div ↔ outer </div>
+      expect(matchingPair(t, 13), [(13, 16), (6, 9)]); // inner </div ↔ inner <div
+      expect(matchingPair(t, 25), isEmpty); // <br>
+      expect(matchingPair('plain text', 3), isEmpty);
+    });
+  });
 }
