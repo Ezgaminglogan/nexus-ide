@@ -92,6 +92,18 @@ void main() {
     await settle(t);
     expect(code.text, mine);
     expect(File('${dir.path}/main.c').readAsStringSync(), mine);
+
+    // The message with Undo closes by itself after its 10 seconds (Flutter keeps action snack bars otherwise).
+    await t.tap(find.byTooltip('Reset to Starter Code (puts the starter template back in this file; asks first)'));
+    await settle(t);
+    await t.tap(find.text('Reset to Starter Code'));
+    await settle(t);
+    expect(find.text('Undo'), findsOneWidget);
+    for (var i = 0; i < 12; i++) {
+      await t.pump(const Duration(seconds: 1));
+    }
+    await t.pumpAndSettle();
+    expect(find.text('Undo'), findsNothing);
   });
 
   testWidgets('Reset refuses file types with no starter template, leaving them as they are', (t) async {
