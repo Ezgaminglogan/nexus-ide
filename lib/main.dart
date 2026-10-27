@@ -1,3 +1,5 @@
+import 'dart:ui' show AppExitResponse;
+
 import 'package:flutter/material.dart';
 
 import 'core/core.dart';
@@ -7,6 +9,15 @@ import 'ui/theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   registerHighlighting(); // HTML/PHP: CSS, JS and PHP inside the page
+  // Closing NEXUS also stops the local web server (like quitting XAMPP), so no php process keeps
+  // port 80 busy afterwards. The binding keeps the listener alive.
+  AppLifecycleListener(
+    onExitRequested: () async {
+      await LocalServer.instance.stop();
+      return AppExitResponse.exit;
+    },
+    onDetach: LocalServer.instance.stop,
+  );
   runApp(NexusApp(ready: Toolchains.init()));
 }
 

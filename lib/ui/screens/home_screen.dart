@@ -8,6 +8,7 @@ import '../../core/core.dart';
 import '../theme.dart';
 import '../widgets/update_dialog.dart';
 import 'editor_screen.dart';
+import 'htdocs_screen.dart';
 import 'learn_screen.dart';
 import 'settings_screen.dart';
 
@@ -197,7 +198,9 @@ class _LanguageTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => EditorScreen(language: lang))),
+        // PHP and Web open htdocs (project folders, like XAMPP); the others open their editor.
+        onTap: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => lang.id == 'php' || lang.id == 'web' ? HtdocsScreen(php: lang.id == 'php') : EditorScreen(language: lang))),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Column(

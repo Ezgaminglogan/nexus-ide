@@ -4,6 +4,7 @@ library;
 export 'arduino.dart';
 export 'code_format.dart';
 export 'console_buffer.dart';
+export 'htdocs.dart';
 export 'otg.dart';
 export 'run_session.dart';
 export 'raspi.dart';

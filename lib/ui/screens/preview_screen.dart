@@ -4,14 +4,35 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
+import '../../core/core.dart';
+
 /// Shows a web page (the Web tile's index.html or the PHP server). Phones get an in-app
 /// WebView with a phone/full-width switch; PCs open the default browser (no WebView there).
 Future<void> openPreview(BuildContext context, Uri uri) async {
   if (!Platform.isAndroid && !Platform.isIOS) {
-    await launchUrl(uri);
+    await launchUrl(uri, mode: LaunchMode.externalApplication); // the student's own browser
     return;
   }
   await Navigator.of(context).push(MaterialPageRoute(builder: (_) => PreviewScreen(uri: uri)));
+}
+
+/// Shows a project the XAMPP way: its folder's parent is served at http://localhost/ and the
+/// project at `http://localhost/<project>/` (plus [file]). PCs open the real browser (Chrome, Edge...);
+/// phones show it inside NEXUS. A Web (HTML) project on a phone, or when PHP is missing, opens
+/// straight from the file, which needs no server.
+Future<void> openProjectSite(BuildContext context, Language lang, {String file = ''}) async {
+  final dir = RunSession.workDir(lang);
+  final page = file.endsWith('.php') || file.endsWith('.html') || file.endsWith('.htm') ? file : '';
+  Future<void> fromFile() => openPreview(context, File('${dir.path}/${page.isEmpty ? lang.fileName : page}').absolute.uri);
+  if (lang.id == 'web' && (Platform.isAndroid || Platform.isIOS)) return fromFile();
+  final server = LocalServer.instance;
+  if (!await server.ensure(dir.parent.path)) {
+    if (!context.mounted) return;
+    if (lang.id == 'web') return fromFile(); // plain HTML still opens without a server
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(server.error)));
+    return;
+  }
+  if (context.mounted) await openPreview(context, server.url(dir.uri.pathSegments.where((s) => s.isNotEmpty).last, page));
 }
 
 class PreviewScreen extends StatefulWidget {

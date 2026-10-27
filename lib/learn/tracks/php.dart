@@ -3,21 +3,21 @@ import '../model.dart';
 const _php = 'The PHP Group (php.net)';
 const _v = 'PHP 8 (XAMPP PHP on the lab PCs, Termux PHP on phones)';
 const _man = 'https://www.php.net/manual/en';
-const _server = 'The PHP server: press Run, then open the preview';
+const _server = 'The local server: press Open in browser (View on a phone)';
 const _mysql = 'MySQL or MariaDB running (XAMPP MySQL on lab PCs, bundled MariaDB on phones)';
 
 const phpTrack = Track(
   langId: 'php',
   title: 'PHP + MySQL',
   intro: 'PHP runs on the server: it builds the HTML page before the browser sees it, and can read forms and talk to a MySQL database. '
-      'In NEXUS, Run starts a small PHP server for the project folder and the preview shows the page. Most lessons print plain text so the '
+      'In NEXUS, like XAMPP, each project is a folder in htdocs and opens at localhost/<project>/ (Open in browser on a PC, View on a phone). Most lessons print plain text so the '
       'output is easy to compare; the form and database lessons need the server and MySQL.',
-  runtime: 'Lab PC: PHP from toolchains/php, XAMPP (C:\\xampp\\php) or PATH; MySQL from XAMPP. Phone: bundled PHP + MariaDB, started together by Run. '
+  runtime: 'Lab PC: PHP from toolchains/php, XAMPP (C:\\xampp\\php) or PATH; MySQL from XAMPP. Phone: bundled PHP + MariaDB, started together when you view a project. '
       'Database settings: host 127.0.0.1, user root, no password, database nexus.',
   run: [
     'Open the PHP tile (or press Try in Editor to open a practice copy).',
-    'Press Run: NEXUS starts the PHP server and opens the preview.',
-    'Edit, save, and reload the preview to see changes. Practice checks run index.php once as a script and read what it prints.',
+    'Press Open in browser (View on a phone): NEXUS starts the local server and opens localhost/<project>/.',
+    'Edit, save, and reload the page to see changes. Practice checks run index.php once as a script and read what it prints.',
   ],
   lessons: [
     Lesson(
@@ -282,7 +282,7 @@ $name = trim($_POST["name"] ?? "");
 </body>
 </html>
 ''',
-      run: ['Put the example in index.php.', 'Press Run and open the preview.', 'Type a name and press Greet me.'],
+      run: ['Put the example in index.php.', 'Press Open in browser (View on a phone).', 'Type a name and press Greet me.'],
       input: 'Ana (typed into the form)',
       output: 'The page shows: Hello, Ana!',
       lines: [
@@ -369,9 +369,9 @@ try {
 }
 ''',
       run: [
-        'Start MySQL: on a lab PC open the XAMPP Control Panel and Start MySQL; on a phone Run starts MariaDB.',
+        'Start MySQL: on a lab PC open the XAMPP Control Panel and Start MySQL; on a phone NEXUS starts MariaDB when you view the page.',
         'Make sure the nexus database exists (in phpMyAdmin or the MySQL console: CREATE DATABASE IF NOT EXISTS nexus;).',
-        'Put the example in index.php, press Run and open the preview.',
+        'Put the example in index.php and press Open in browser (View on a phone).',
       ],
       output: 'Ana: 91\nO&#039;Neil: 85',
       lines: [
@@ -504,14 +504,14 @@ $db->query("CREATE TABLE IF NOT EXISTS learn_guestbook (
         'Only learn_guestbook is used.',
       ],
       checklist: [
-        'MySQL is running (XAMPP on a PC, Run on a phone) and the page opens without a database error.',
+        'MySQL is running (XAMPP on a PC; on a phone it starts when you view the page) and the page opens without a database error.',
         'Submitting the form adds the entry at the top of the list.',
         'An empty name or message shows a message and saves nothing.',
         "A name like O'Neil saves and shows correctly.",
         'A message like <b>hi</b> is shown as text, not bold.',
         'Reloading the page after posting does not break anything.',
       ],
-      criteria: 'Every checklist item is true when you try it in the preview. NEXUS cannot check a database page automatically, so you tick the list yourself.',
+      criteria: 'Every checklist item is true when you try it in the browser. NEXUS cannot check a database page automatically, so you tick the list yourself.',
       hint: r'Check $_SERVER["REQUEST_METHOD"] === "POST", trim both fields, then prepare("INSERT INTO learn_guestbook (name, message) VALUES (?, ?)") and bind_param("ss", ...).',
       solution: r'''<?php
 // MySQL settings: host 127.0.0.1, user root, no password, database nexus.

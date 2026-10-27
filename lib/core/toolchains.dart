@@ -63,7 +63,13 @@ class Language {
 
   /// The same language in its own folder under workspace/practice/, for lesson examples and
   /// exercises, so practising never touches the student's project files.
-  Language practice(String name, String title) => Language(
+  Language practice(String name, String title) => inFolder('practice/$name/$id', title); // ends in the id: arduino-cli wants the folder named like the sketch
+
+  /// A PHP or Web project in htdocs (`workspace/htdocs/<name>`), served at `localhost/<name>/`.
+  Language project(String name) => inFolder('htdocs/$name', name);
+
+  /// This language with its files in [folder] (inside the workspace) and its own [title].
+  Language inFolder(String folder, String title) => Language(
         id: id,
         label: title,
         fileName: fileName,
@@ -77,7 +83,7 @@ class Language {
         color: color,
         blurb: blurb,
         description: description,
-        folder: 'practice/$name/$id', // ends in the id: arduino-cli wants the folder named like the sketch
+        folder: folder,
       );
 }
 
@@ -344,7 +350,7 @@ final languages = <Language>[
     fileName: 'index.php',
     mode: xml, // HTML with <?php ?> blocks highlighted as PHP (languages registered in main.dart)
     template: _phpTemplate,
-    // Serves the folder at [phpUrl] until Stop. PC: portable PHP in toolchains/php (or PATH);
+    // The editor serves projects through LocalServer (htdocs.dart); these steps are the same server for one folder. PC: portable PHP in toolchains/php (or PATH);
     // MySQL from XAMPP or a portable MariaDB.
     steps: [
       (tool: 'php/php', args: ['-S', '127.0.0.1:8080', '-t', '.']),
@@ -377,9 +383,6 @@ final languages = <Language>[
         'PUD_UP', 'PUD_DOWN', 'pull_up_down', 'time', 'sleep'],
   ),
 ];
-
-/// Where the PHP tile's built-in server listens.
-const phpUrl = 'http://127.0.0.1:8080/';
 
 const _dalvikvm = '/system/bin/dalvikvm';
 

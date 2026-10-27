@@ -9,11 +9,11 @@ const webTrack = Track(
   title: 'Web: HTML, CSS, JavaScript',
   intro: 'A web page is HTML for the content, CSS for the look and JavaScript for behaviour. The Web tile has two ways to build: Code, where '
       'you write index.html (plus .css and .js files), and Design, where you drag blocks into rows and NEXUS writes a responsive index.html. '
-      'Nothing needs installing: pages open in the preview, offline.',
-  runtime: 'Built in: no compiler. The preview uses the device\'s own web view (WebView2 on Windows, Android System WebView on phones).',
+      'Nothing needs installing. Like XAMPP, each site is a folder in htdocs: on a PC it opens in your own browser at localhost/<project>/, on a phone inside NEXUS.',
+  runtime: 'Built in: no compiler. PCs open pages in the default browser (through the local server, or the file when PHP is missing); phones use Android System WebView.',
   run: [
     'Open the Web tile (or press Try in Editor to open a practice copy).',
-    'Edit index.html; the preview refreshes when you save.',
+    'Edit index.html, press Open in browser (View on a phone), and reload after each save.',
     'Switch between Code and Design at the top; add .css or .js files with the + in the explorer.',
   ],
   lessons: [

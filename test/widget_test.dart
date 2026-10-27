@@ -5,6 +5,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus_ide/core/core.dart';
 import 'package:nexus_ide/main.dart';
 
+/// PHP and Web tiles open htdocs; this makes a project there with the New project dialog.
+Future<void> newProject(WidgetTester tester, String tile, String name) async {
+  await tester.tap(find.text(tile));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('new-project')));
+  await tester.pumpAndSettle();
+  await tester.enterText(find.byKey(const Key('project-name')), name);
+  await tester.pump();
+  await tester.tap(find.byKey(const Key('project-create')));
+  for (var i = 0; i < 5; i++) {
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+  }
+  await tester.pumpAndSettle();
+}
+
 void main() {
   setUp(() => Toolchains.workRoot = Directory.systemTemp.createTempSync('nexus_ws').path);
 
@@ -76,8 +92,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(NexusApp(ready: Future.value()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('HTML · CSS · JS · Designer'));
-    await tester.pumpAndSettle();
+    await newProject(tester, 'HTML · CSS · JS · Designer', 'site');
+    expect(File('${Toolchains.workRoot}/htdocs/site/index.html').existsSync(), isTrue);
     await tester.tap(find.text('Design'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Heading'));
@@ -96,11 +112,11 @@ void main() {
     Settings.reset();
     await tester.pumpWidget(NexusApp(ready: Future.value()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Server pages · MySQL'));
-    await tester.pumpAndSettle();
+    await newProject(tester, 'Server pages · MySQL', 'shop');
+    expect(File('${Toolchains.workRoot}/htdocs/shop/index.php').existsSync(), isTrue);
 
     expect(find.text('TERMINAL'), findsNothing);
-    expect(find.text('PHP PROJECT'), findsOneWidget); // explorer sidebar on a wide screen
+    expect(find.text('SHOP PROJECT'), findsOneWidget); // explorer sidebar on a wide screen
     await tester.tap(find.byTooltip('New file'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const Key('new-file-name')), 'pages/admin/about.php');
@@ -111,16 +127,16 @@ void main() {
       await tester.pump();
     }
 
-    expect(File('${Toolchains.workRoot}/php/pages/admin/about.php').existsSync(), isTrue);
+    expect(File('${Toolchains.workRoot}/htdocs/shop/pages/admin/about.php').existsSync(), isTrue);
     expect(find.text('about.php'), findsWidgets); // tree row + open tab
     expect(find.text('admin'), findsOneWidget); // folders opened on the way
 
     await tester.tap(find.byTooltip('Files (explorer)'));
     await tester.pumpAndSettle();
-    expect(find.text('PHP PROJECT'), findsNothing);
+    expect(find.text('SHOP PROJECT'), findsNothing);
     expect(Settings.instance.get('explorer.visible', true), isFalse);
     await tester.tap(find.byTooltip('Files (explorer)'));
     await tester.pumpAndSettle();
-    expect(find.text('PHP PROJECT'), findsOneWidget);
+    expect(find.text('SHOP PROJECT'), findsOneWidget);
   });
 }

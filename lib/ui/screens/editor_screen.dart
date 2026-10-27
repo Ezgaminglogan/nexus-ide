@@ -15,6 +15,7 @@ import '../widgets/explorer.dart';
 import '../widgets/raspi_panel.dart';
 import '../widgets/web_designer.dart';
 import '../widgets/widgets.dart';
+import 'htdocs_screen.dart';
 import 'learn_screen.dart';
 import 'preview_screen.dart';
 import 'terminal_screen.dart';
@@ -297,12 +298,11 @@ class _EditorScreenState extends State<EditorScreen> {
         ]),
       );
 
+  /// Saves, then shows the open page (or the project's index) at `localhost/<project>/`, like XAMPP:
+  /// the real browser on PCs, inside NEXUS on phones. The server starts by itself.
   Future<void> _preview() async {
     await _saveNow();
-    // The open page if it is one, else the main page.
-    if (_php) return mounted ? openPreview(context, Uri.parse('$phpUrl${_file.endsWith('.php') ? _file : ''}')) : null;
-    final page = _file.endsWith('.html') ? _file : _lang.fileName;
-    if (mounted) await openPreview(context, File('${RunSession.workDir(_lang).path}/$page').absolute.uri);
+    if (mounted) await openProjectSite(context, _lang, file: _file);
   }
 
   void _designChanged() {
@@ -541,7 +541,7 @@ class _EditorScreenState extends State<EditorScreen> {
                       ? null
                       : () => Navigator.of(context).pushReplacement(PageRouteBuilder(
                             transitionDuration: Duration.zero,
-                            pageBuilder: (_, _, _) => EditorScreen(language: l),
+                            pageBuilder: (_, _, _) => l.id == 'php' || l.id == 'web' ? HtdocsScreen(php: l.id == 'php') : EditorScreen(language: l),
                           )),
                   child: Container(
                     padding: const EdgeInsets.all(6),
@@ -560,7 +560,7 @@ class _EditorScreenState extends State<EditorScreen> {
   Widget build(BuildContext context) {
     return CallbackShortcuts(
       bindings: {
-        const SingleActivator(LogicalKeyboardKey.f5): _arduino ? _upload : (_web ? _preview : _run),
+        const SingleActivator(LogicalKeyboardKey.f5): _arduino ? _upload : (_web || _php ? _preview : _run),
         const SingleActivator(LogicalKeyboardKey.keyF, shift: true, alt: true): _format,
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): _saveNow,
       },
@@ -635,15 +635,19 @@ class _EditorScreenState extends State<EditorScreen> {
                 ),
               if (_arduino)
                 IconButton(tooltip: 'Verify (compile)', onPressed: _session.running ? null : _verify, icon: const Icon(Icons.check_circle_outline_rounded)),
-              if (_php)
-                IconButton(tooltip: 'Preview (start the server first)', onPressed: _session.running ? _preview : null, icon: const Icon(Icons.open_in_browser)),
               Padding(
                 padding: const EdgeInsets.only(right: 10, left: 4),
                 child: _arduino
                     ? RunButton(running: _session.running, onRun: _upload, onStop: _session.stop, label: 'Upload', icon: Icons.upload_rounded)
-                    : _web
-                        ? RunButton(running: false, onRun: _preview, onStop: () {}, label: 'Preview', icon: Icons.visibility_outlined)
-                        : RunButton(running: _session.running, onRun: _run, onStop: _session.stop, label: _php ? 'Serve' : 'Run'),
+                    : _web || _php
+                        ? RunButton(
+                            running: false,
+                            onRun: _preview,
+                            onStop: () {},
+                            label: Platform.isAndroid || Platform.isIOS ? 'View' : 'Open in browser',
+                            icon: Icons.open_in_browser,
+                          )
+                        : RunButton(running: _session.running, onRun: _run, onStop: _session.stop),
               ),
             ],
           ),

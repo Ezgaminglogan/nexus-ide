@@ -74,7 +74,27 @@ void main() {
     await settle(t);
     await t.tap(find.text('Server pages · MySQL'));
     await settle(t);
+    await t.tap(find.text('my-php-site')); // the old PHP folder, moved into htdocs on first open
+    await settle(t);
   }
+
+  testWidgets('htdocs (desktop and phone)', (t) async {
+    t.view.physicalSize = const Size(1400, 900);
+    t.view.devicePixelRatio = 1;
+    createProject('guestbook', php: true);
+    createProject('portfolio', php: false);
+    createProject('enrollment', php: true);
+    await t.pumpWidget(NexusApp(ready: Future.value()));
+    await settle(t);
+    await t.ensureVisible(find.text('Server pages · MySQL'));
+    await t.tap(find.text('Server pages · MySQL'));
+    await settle(t);
+    await shot(t, 'htdocs');
+    t.view.physicalSize = const Size(412 * 2.6, 915 * 2.6);
+    t.view.devicePixelRatio = 2.6;
+    await settle(t);
+    await shot(t, 'phone_htdocs');
+  });
 
   testWidgets('desktop editor with explorer', (t) async {
     t.view.physicalSize = const Size(1600, 900);

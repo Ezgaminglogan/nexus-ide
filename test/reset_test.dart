@@ -112,12 +112,14 @@ void main() {
     t.view.physicalSize = const Size(1280, 900);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    final dir = Directory('${Toolchains.workRoot}/web')..createSync(recursive: true);
+    final dir = Directory('${Toolchains.workRoot}/htdocs/site')..createSync(recursive: true);
     File('${dir.path}/index.html').writeAsStringSync(lang('web').template);
     File('${dir.path}/data.json').writeAsStringSync('{"a": 1}');
     await t.pumpWidget(NexusApp(ready: Future.value()));
     await settle(t);
     await t.tap(find.text('HTML · CSS · JS · Designer'));
+    await settle(t);
+    await t.tap(find.text('site')); // the project folder in htdocs
     await settle(t);
     await t.tap(find.text('data.json'));
     await settle(t);
