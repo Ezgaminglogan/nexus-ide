@@ -24,6 +24,22 @@ void main() {
     expect(find.text('CTU Naga Extension Campus · works offline'), findsOneWidget);
   });
 
+  testWidgets('a waiting update shows a banner on home and a dot on Settings', (tester) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final u = Updater.instance
+      ..current = Version(1, 1, 4)
+      ..latest = Release.fromJson({'tag_name': 'v1.2.0', 'assets': const []})
+      ..status = UpdateStatus.available;
+    addTearDown(() => u.status = UpdateStatus.idle);
+    await tester.pumpWidget(NexusApp(ready: Future.value()));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('update-banner')), findsOneWidget);
+    expect(find.text('NEXUS v1.2.0 is available'), findsOneWidget);
+    expect(find.byTooltip('Settings and updates (an update is available)'), findsOneWidget);
+  });
+
   testWidgets('tapping C opens the editor with its template and a Run (F5) button', (tester) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;

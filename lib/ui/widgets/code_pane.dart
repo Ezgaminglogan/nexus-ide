@@ -24,6 +24,40 @@ class NexusCodeController extends CodeController {
   }
 
   void format({required bool braces}) => fullText = formatCode(fullText, braces: braces);
+
+  /// Arrow keys for phones: one character left/right ([dx]) or one line up/down ([dy]), keeping
+  /// the column where the line is long enough. With [select], the selection grows instead.
+  void moveCursor({int dx = 0, int dy = 0, bool select = false}) {
+    final sel = selection.isValid ? selection : const TextSelection.collapsed(offset: 0);
+    var at = sel.extentOffset;
+    if (dx != 0) at = (at + dx).clamp(0, text.length);
+    if (dy != 0) {
+      final lines = text.split('\n');
+      final row = '\n'.allMatches(text.substring(0, at)).length;
+      final col = at - (text.lastIndexOf('\n', at - 1) + 1);
+      final to = (row + dy).clamp(0, lines.length - 1);
+      at = lines.take(to).fold<int>(0, (sum, l) => sum + l.length + 1) + col.clamp(0, lines[to].length);
+    }
+    selection = select ? TextSelection(baseOffset: sel.baseOffset, extentOffset: at) : TextSelection.collapsed(offset: at);
+  }
+
+  /// The package's setter drops the selection (offset -1): the caret still showed where it was,
+  /// but a phone keyboard then typed at the very top. Keep it on the same line, at the same place
+  /// in that line's text (indentation may have changed).
+  @override
+  set fullText(String code) {
+    final old = selection, before = text;
+    super.fullText = code;
+    if (!old.isValid) return;
+    final upTo = before.substring(0, old.extentOffset.clamp(0, before.length)).split('\n');
+    final oldLine = before.split('\n')[upTo.length - 1];
+    final now = text.split('\n');
+    final row = (upTo.length - 1).clamp(0, now.length - 1);
+    int indent(String l) => l.length - l.trimLeft().length;
+    final intoText = (upTo.last.length - indent(oldLine)).clamp(0, oldLine.length);
+    final col = (indent(now[row]) + intoText).clamp(0, now[row].length);
+    selection = TextSelection.collapsed(offset: now.take(row).fold<int>(0, (sum, l) => sum + l.length + 1) + col);
+  }
 }
 
 /// Syntax-highlighted editor with line numbers (VS Code dark colors). Autocomplete comes from

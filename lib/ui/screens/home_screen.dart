@@ -48,6 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const _Header(),
+                  const _UpdateBanner(),
                   const _LearnCard(),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
@@ -164,10 +165,16 @@ class _Header extends StatelessWidget {
           top: 8,
           right: 8,
           child: SafeArea(
-            child: IconButton.filledTonal(
-              tooltip: 'Settings and updates',
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
-              icon: const Icon(Icons.settings_outlined),
+            child: ListenableBuilder(
+              listenable: Updater.instance,
+              builder: (context, _) {
+                final update = Updater.instance.status == UpdateStatus.available;
+                return IconButton.filledTonal(
+                  tooltip: update ? 'Settings and updates (an update is available)' : 'Settings and updates',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                  icon: Badge(isLabelVisible: update, backgroundColor: Nx.run, smallSize: 9, child: const Icon(Icons.settings_outlined)),
+                );
+              },
             ),
           ),
         ),
@@ -232,6 +239,48 @@ class _LanguageTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Stays on the home screen while a newer version is waiting (also after "Remind me later"),
+/// so nobody misses an update; the dialog only pops up once a day.
+class _UpdateBanner extends StatelessWidget {
+  const _UpdateBanner();
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: Updater.instance,
+        builder: (context, _) {
+          final u = Updater.instance;
+          if (u.status != UpdateStatus.available || u.latest == null) return const SizedBox();
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: Material(
+              key: const Key('update-banner'),
+              color: Nx.run.withValues(alpha: 0.12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Nx.run.withValues(alpha: 0.5))),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  const Icon(Icons.system_update_alt, color: Nx.run, size: 30),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('NEXUS v${u.latest!.version} is available', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                      Text('You have v${u.current ?? '?'}. Your files and settings are kept when you update.', style: const TextStyle(fontSize: 13, color: Nx.muted)),
+                    ]),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: Nx.run, foregroundColor: const Color(0xFF05351B)),
+                    onPressed: () => showUpdateDialog(context),
+                    child: const Text('See update'),
+                  ),
+                ]),
+              ),
+            ),
+          );
+        },
+      );
 }
 
 /// Entry to Learn & Practice: lessons, a quiz and checked exercises for every workspace.

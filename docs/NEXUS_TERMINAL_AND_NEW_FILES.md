@@ -119,7 +119,7 @@ The guarded flow from `NEXUS_DOCUMENTATION_AND_RESET.md` is unchanged:
 
 - a confirmation dialog that names the file, with Cancel focused;
 - a recovery copy written first;
-- Undo for 10 seconds;
+- Undo for 5 seconds;
 - other files never change.
 
 ### Adding or changing a template

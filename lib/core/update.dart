@@ -167,10 +167,23 @@ class Updater extends ChangeNotifier {
   Future<bool> autoCheck() async {
     final last = lastCheck;
     final snooze = DateTime.tryParse(Settings.instance.get('update.snoozeUntil', ''));
-    if (last != null && DateTime.now().difference(last) < const Duration(hours: 20)) return false;
+    if (last != null && DateTime.now().difference(last) < const Duration(hours: 20)) {
+      await _restorePending(); // offline-friendly: the update found earlier stays announced
+      return false;
+    }
     if (snooze != null && DateTime.now().isBefore(snooze)) return false;
     await check();
     return status == UpdateStatus.available && claimModal();
+  }
+
+  /// The update found by the last online check, if it is still newer than what is installed.
+  Future<void> _restorePending() async {
+    final j = Settings.instance.get<Map?>('update.pending', null);
+    final r = j == null ? null : Release.fromJson(j.cast<String, dynamic>());
+    await loadCurrent();
+    if (r == null || current == null || !(r.version > current!) || (r.prerelease && !beta)) return;
+    latest = r;
+    _set(assetFor(r) == null ? UpdateStatus.incompatible : UpdateStatus.available);
   }
 
   /// True when no update dialog is open, so repeated checks never stack dialogs.
@@ -224,6 +237,8 @@ class Updater extends ChangeNotifier {
       final releases = [for (final j in list.cast<Map<String, dynamic>>()) ?Release.fromJson(j)];
       Settings.instance.set('update.lastCheck', DateTime.now().toIso8601String());
       latest = pickUpdate(releases, current ?? Version(0, 0, 0), beta: beta);
+      // Remembered, so the home banner still shows on launches that skip the online check.
+      Settings.instance.set('update.pending', latest == null ? null : list.firstWhere((j) => j['tag_name'] == 'v${latest!.version}' || j['tag_name'] == '${latest!.version}', orElse: () => null));
       if (latest == null) return _set(UpdateStatus.upToDate);
       _set(assetFor(latest!) == null ? UpdateStatus.incompatible : UpdateStatus.available);
     } on SocketException {

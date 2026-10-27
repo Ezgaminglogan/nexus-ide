@@ -217,7 +217,7 @@ class _EditorScreenState extends State<EditorScreen> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(
         content: Text('$name is back to the starter code.'),
-        duration: const Duration(seconds: 10),
+        duration: const Duration(seconds: 5),
         persist: false, // Flutter keeps a SnackBar with an action open forever unless told otherwise
         action: SnackBarAction(
           label: 'Undo',

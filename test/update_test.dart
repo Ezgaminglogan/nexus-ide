@@ -93,4 +93,29 @@ void main() {
     expect(m.body, '');
     expect(m.page, endsWith('/tag/v1.2.0'));
   });
+  test('an update found earlier is still announced on launches that skip the online check', () async {
+    Toolchains.workRoot = Directory.systemTemp.createTempSync('upd').path;
+    Settings.reset();
+    Settings.instance
+      ..set('update.lastCheck', DateTime.now().toIso8601String()) // checked an hour ago: no network now
+      ..set('update.pending', {
+        'tag_name': 'v9.1.0',
+        'name': 'NEXUS IDE v9.1.0',
+        'assets': [for (final a in ['nexus-ide-v9.1.0-arm64.apk', 'nexus-ide-v9.1.0-windows-x64.zip']) {'name': a, 'browser_download_url': 'https://x/$a', 'size': 10}],
+      });
+    final u = Updater.instance
+      ..current = Version(1, 1, 4)
+      ..latest = null
+      ..status = UpdateStatus.idle;
+    expect(await u.autoCheck(), isFalse); // no pop-up again today...
+    expect(u.latest?.version.toString(), '9.1.0'); // ...but the home banner knows about it
+    expect(u.status, Platform.isWindows || Platform.isAndroid ? UpdateStatus.available : UpdateStatus.incompatible);
+
+    u
+      ..current = Version(9, 1, 0) // installed it meanwhile: nothing to announce
+      ..latest = null
+      ..status = UpdateStatus.idle;
+    await u.autoCheck();
+    expect(u.latest, isNull);
+  });
 }

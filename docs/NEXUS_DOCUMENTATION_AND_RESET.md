@@ -204,7 +204,7 @@ The records live in the lessons (`Ref(title, publisher, url, version:, verified:
   - The current code is written to `workspace/.nexus/recovery/<workspace>/<file>.<timestamp>.txt` first. If that write fails, nothing is replaced.
   - A running program or server is stopped.
   - The starter is saved, the syntax mode is restored and the cursor goes to the start.
-  - A message offers **Undo** for 10 seconds, which restores the exact previous code.
+  - A message offers **Undo** for 5 seconds, which restores the exact previous code.
 
 ## 6. Test results (2026-10-25, Windows lab PC)
 

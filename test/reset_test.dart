@@ -10,7 +10,7 @@ Language lang(String id) => languages.firstWhere((l) => l.id == id);
 
 /// Real file IO runs outside the test's fake clock: let it finish between frames.
 Future<void> settle(WidgetTester t) async {
-  for (var i = 0; i < 12; i++) {
+  for (var i = 0; i < 7; i++) {
     await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
     await t.pump(const Duration(milliseconds: 50));
   }
@@ -88,18 +88,20 @@ void main() {
     expect(copies.single.readAsStringSync(), mine);
 
     // Undo: the exact previous code, in the editor and on disk.
+    await t.pump(const Duration(milliseconds: 400)); // let the message finish sliding in
     await t.tap(find.text('Undo'));
     await settle(t);
     expect(code.text, mine);
     expect(File('${dir.path}/main.c').readAsStringSync(), mine);
 
-    // The message with Undo closes by itself after its 10 seconds (Flutter keeps action snack bars otherwise).
+    // The message with Undo closes by itself after its 5 seconds (Flutter keeps action snack bars otherwise).
     await t.tap(find.byTooltip('Reset to Starter Code (puts the starter template back in this file; asks first)'));
     await settle(t);
     await t.tap(find.text('Reset to Starter Code'));
     await settle(t);
+    await t.pump(const Duration(milliseconds: 800)); // the previous message slides out, this one in
     expect(find.text('Undo'), findsOneWidget);
-    for (var i = 0; i < 12; i++) {
+    for (var i = 0; i < 7; i++) {
       await t.pump(const Duration(seconds: 1));
     }
     await t.pumpAndSettle();

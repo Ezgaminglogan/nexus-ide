@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus_ide/core/code_format.dart';
+import 'package:nexus_ide/ui/widgets/code_pane.dart';
 
 TextEditingValue at(String text, [int? caret]) =>
     TextEditingValue(text: text, selection: TextSelection.collapsed(offset: caret ?? text.length));
@@ -140,5 +141,40 @@ try {
       expect(matchingPair(t, 25), isEmpty); // <br>
       expect(matchingPair('plain text', 3), isEmpty);
     });
+  });
+
+  // Phones: after Format the caret looked right, but the controller's selection was reset to -1,
+  // so the keyboard's next letter went to the very top of the file.
+  test('Format keeps the cursor on the same line, so typing continues where you were', () {
+    const java = 'public class Main {\npublic static void main(String[] args) {\nSystem.out.println("hi");\n}\n}\n';
+    final c = NexusCodeController(text: java);
+    final at = java.indexOf('System') + 6; // after "System" on line 3
+    c.selection = TextSelection.collapsed(offset: at);
+    c.format(braces: true);
+    expect(c.selection.isValid, isTrue);
+    final before = c.text.substring(0, c.selection.baseOffset);
+    expect('\n'.allMatches(before).length, 2); // still line 3
+    c.insertText('X');
+    expect(c.text.split('\n')[2].trim(), 'SystemX.out.println("hi");');
+    expect(c.text, startsWith('public class Main {'));
+  });
+
+  test('arrow keys move the cursor by character and line, and Select grows the selection', () {
+    final c = NexusCodeController(text: 'abcdef\nxy\n\nlast line');
+    c.selection = const TextSelection.collapsed(offset: 4); // ab cd|ef
+    c.moveCursor(dy: 1);
+    expect(c.selection.baseOffset, 9); // line 2 is shorter: end of "xy"
+    c.moveCursor(dy: 1);
+    expect(c.selection.baseOffset, 10); // the empty line
+    c.moveCursor(dx: -1);
+    expect(c.selection.baseOffset, 9);
+    c.moveCursor(dy: -5);
+    expect(c.selection.baseOffset, 2); // clamped to the first line, column 2
+    c.moveCursor(dx: 2, select: true);
+    expect((c.selection.baseOffset, c.selection.extentOffset), (2, 4));
+    expect(c.selection.textInside(c.text), 'cd');
+    c.selection = const TextSelection.collapsed(offset: -1); // no caret yet: starts at the top
+    c.moveCursor(dx: -1);
+    expect(c.selection.baseOffset, 0);
   });
 }
