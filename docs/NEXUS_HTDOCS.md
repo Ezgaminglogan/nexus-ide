@@ -5,7 +5,7 @@ PHP and Web projects work like XAMPP, so what students practise in NEXUS is what
 ## What students see
 
 - **The PHP and Web tiles open `htdocs`.** It lists the project folders (`guestbook`, `portfolio`…). It also shows where `htdocs` is on disk (with a copy button, and "Open in File Explorer" on Windows) and whether the local server is running.
-- **New project** asks for a folder name and **PHP site** or **HTML site**. It shows the folder (`htdocs/<name>/`) and the address before creating, and starts the project with `index.php` or `index.html`.
+- **New project** asks for a folder name and a **tech stack** (HTML, HTML + Bootstrap, PHP + MySQL, PHP + SQLite, PHP + Bootstrap + MySQL; see `NEXUS_DATABASES_AND_STACKS.md`). It shows the folder (`htdocs/<name>/`) and the address before creating, and starts the project with `index.php` or `index.html`.
 - **Names** must work in a URL: letters, numbers, `-` and `_`, no spaces, and no duplicates (case-insensitive).
 - **Each project opens at `http://localhost/<project>/`.**
   - **Windows:** **Open in browser** opens it in the student's own default browser (Chrome, Edge, Firefox…).

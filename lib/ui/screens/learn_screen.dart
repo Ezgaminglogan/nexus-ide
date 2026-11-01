@@ -23,7 +23,7 @@ class LearnScreen extends StatefulWidget {
   State<LearnScreen> createState() => _LearnScreenState();
 }
 
-enum _Kind { overview, lesson, quiz, exercise }
+enum _Kind { home, overview, lesson, quiz, exercise }
 
 typedef _Page = ({int t, _Kind kind, int i});
 
@@ -34,12 +34,13 @@ Settings get _progress => Settings.named('learn');
 Language _base(Track t) => languages.firstWhere((l) => l.id == t.langId);
 
 String _codeLang(String langId) => switch (langId) {
-      'c' || 'arduino' => 'cpp',
-      'python' || 'raspi' => 'python',
-      'java' => 'java',
-      'csharp' => 'cs',
-      _ => 'xml', // web, php: HTML with <?php ?> and <script> blocks
-    };
+  'c' || 'arduino' => 'cpp',
+  'python' || 'raspi' => 'python',
+  'java' => 'java',
+  'csharp' => 'cs',
+  'sql' => 'sql',
+  _ => 'xml', // web, php: HTML with <?php ?> and <script> blocks
+};
 
 class _LearnScreenState extends State<LearnScreen> {
   late final List<_Page> _pages = [
@@ -50,7 +51,18 @@ class _LearnScreenState extends State<LearnScreen> {
       for (var i = 0; i < tr.exercises.length; i++) (t: t, kind: _Kind.exercise, i: i),
     ],
   ];
-  late _Page _page = (t: tracks.indexWhere((t) => t.langId == widget.langId).clamp(0, tracks.length - 1), kind: _Kind.overview, i: 0);
+  late _Page _page = (
+    t: tracks.indexWhere((t) => t.langId == widget.langId).clamp(0, tracks.length - 1),
+    kind: widget.langId == null ? _Kind.home : _Kind.overview,
+    i: 0,
+  );
+
+  /// One level up: a lesson, quiz or exercise -> its workspace; a workspace -> the Learn main page.
+  _Page? get _up => switch (_page.kind) {
+    _Kind.home => null,
+    _Kind.overview => (t: _page.t, kind: _Kind.home, i: 0),
+    _ => (t: _page.t, kind: _Kind.overview, i: 0),
+  };
   late final Set<int> _open = {_page.t}; // expanded tracks in the sidebar
   bool _sidebar = true;
   String _query = '';
@@ -81,6 +93,7 @@ class _LearnScreenState extends State<LearnScreen> {
   String _pageTitle(_Page p) {
     final t = tracks[p.t];
     return switch (p.kind) {
+      _Kind.home => 'All topics',
       _Kind.overview => '${t.title}: overview',
       _Kind.lesson => t.lessons[p.i].title,
       _Kind.quiz => '${t.title} quiz',
@@ -103,132 +116,207 @@ class _LearnScreenState extends State<LearnScreen> {
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final sidebar = _Sidebar(state: this);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Learn & Practice'),
-        actions: [
-          if (wide)
-            IconButton(
-              tooltip: _sidebar ? 'Hide topics' : 'Show topics',
-              onPressed: () => setState(() => _sidebar = !_sidebar),
-              icon: Icon(_sidebar ? Icons.menu_open : Icons.menu),
-            ),
-        ],
-      ),
-      drawer: wide ? null : Drawer(width: 320, backgroundColor: Nx.bg, child: SafeArea(child: sidebar)),
-      body: Row(children: [
-        if (wide && _sidebar) ...[SizedBox(width: 320, child: sidebar), const VerticalDivider(width: 1, color: Nx.line)],
-        Expanded(
-          child: SelectionArea(
-            child: ListView(
-              controller: _scroll,
-              padding: EdgeInsets.symmetric(horizontal: wide ? 32 : 16, vertical: 16),
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 920),
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      _breadcrumbs(),
-                      const SizedBox(height: 8),
-                      ...switch (_page.kind) {
-                        _Kind.overview => _overview(),
-                        _Kind.lesson => _lesson(_track.lessons[_page.i]),
-                        _Kind.quiz => _quiz(),
-                        _Kind.exercise => _exercise(_track.exercises[_page.i]),
-                      },
-                      const SizedBox(height: 24),
-                      _prevNext(),
-                    ]),
-                  ),
-                ),
-              ],
-            ),
+    final up = _up;
+    // Back (the arrow, or Android's Back) goes up one level before it leaves Learn.
+    return PopScope(
+      canPop: up == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && up != null) _go(up);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: up == null ? 'Back' : 'Back to ${up.kind == _Kind.home ? 'all topics' : tracks[up.t].title}',
+            onPressed: () => up == null ? Navigator.of(context).maybePop() : _go(up),
+            icon: const Icon(Icons.arrow_back),
           ),
+          title: const Text('Learn & Practice'),
+          actions: [
+            wide
+                ? IconButton(
+                    tooltip: _sidebar ? 'Hide topics' : 'Show topics',
+                    onPressed: () => setState(() => _sidebar = !_sidebar),
+                    icon: Icon(_sidebar ? Icons.menu_open : Icons.menu),
+                  )
+                : Builder(
+                    builder: (context) => IconButton(tooltip: 'Topics', onPressed: Scaffold.of(context).openDrawer, icon: const Icon(Icons.menu_book_outlined)),
+                  ),
+          ],
         ),
-      ]),
+        drawer: wide
+            ? null
+            : Drawer(
+                width: 320,
+                backgroundColor: Nx.bg,
+                child: SafeArea(child: sidebar),
+              ),
+        body: Row(
+          children: [
+            if (wide && _sidebar) ...[SizedBox(width: 320, child: sidebar), const VerticalDivider(width: 1, color: Nx.line)],
+            Expanded(
+              child: SelectionArea(
+                child: ListView(
+                  controller: _scroll,
+                  padding: EdgeInsets.symmetric(horizontal: wide ? 32 : 16, vertical: 16),
+                  children: [
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 920),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _breadcrumbs(),
+                            const SizedBox(height: 8),
+                            ...switch (_page.kind) {
+                              _Kind.home => _home(),
+                              _Kind.overview => _overview(),
+                              _Kind.lesson => _lesson(_track.lessons[_page.i]),
+                              _Kind.quiz => _quiz(),
+                              _Kind.exercise => _exercise(_track.exercises[_page.i]),
+                            },
+                            const SizedBox(height: 24),
+                            if (_page.kind != _Kind.home) _prevNext(),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _breadcrumbs() {
+    if (_page.kind == _Kind.home) return const SizedBox();
     final crumbs = <(String, _Page?)>[
-      ('Learn', null),
+      ('Learn', (t: _page.t, kind: _Kind.home, i: 0)),
       (_track.title, (t: _page.t, kind: _Kind.overview, i: 0)),
       if (_page.kind == _Kind.lesson) ('Lesson ${_page.i + 1} of ${_track.lessons.length}', null),
       if (_page.kind == _Kind.quiz) ('Quiz', null),
       if (_page.kind == _Kind.exercise) ('Exercise ${_page.i + 1} of ${_track.exercises.length}', null),
     ];
-    return Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-      for (final (i, (label, target)) in crumbs.indexed) ...[
-        if (i > 0) const Icon(Icons.chevron_right, size: 16, color: Nx.muted),
-        target != null && _page.kind != _Kind.overview
-            ? InkWell(onTap: () => _go(target), child: Text(label, style: const TextStyle(color: Color(0xFF8FB0FF), fontSize: 13)))
-            : Text(label, style: const TextStyle(color: Nx.muted, fontSize: 13)),
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (final (i, (label, target)) in crumbs.indexed) ...[
+          if (i > 0) const Icon(Icons.chevron_right, size: 16, color: Nx.muted),
+          target != null && target != _page
+              ? InkWell(
+                  onTap: () => _go(target),
+                  child: Text(label, style: const TextStyle(color: Color(0xFF8FB0FF), fontSize: 13)),
+                )
+              : Text(label, style: const TextStyle(color: Nx.muted, fontSize: 13)),
+        ],
       ],
-    ]);
+    );
   }
 
   Widget _prevNext() {
     final at = _pages.indexOf(_page);
     final prev = at > 0 ? _pages[at - 1] : null, next = at < _pages.length - 1 ? _pages[at + 1] : null;
+    // The arrow goes after "Next" with iconAlignment; mirroring the text direction instead would
+    // also mirror the arrow itself (it pointed left).
     Widget side(_Page? p, bool forward) => p == null
         ? const SizedBox()
         : OutlinedButton.icon(
+            key: Key(forward ? 'learn-next' : 'learn-prev'),
             onPressed: () => _go(p),
+            iconAlignment: forward ? IconAlignment.end : IconAlignment.start,
             icon: Icon(forward ? Icons.arrow_forward : Icons.arrow_back),
             label: Text(_pageTitle(p), overflow: TextOverflow.ellipsis),
           );
-    return Row(children: [
-      Flexible(child: side(prev, false)),
-      const Spacer(),
-      Flexible(child: Directionality(textDirection: TextDirection.rtl, child: side(next, true))),
-    ]);
+    return Row(
+      children: [
+        Flexible(child: side(prev, false)),
+        const Spacer(),
+        Flexible(child: side(next, true)),
+      ],
+    );
   }
 
   // ---------- pieces ----------
 
   Widget _h1(String title, String sub) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 4),
-          Text(sub, style: const TextStyle(fontSize: 15, color: Nx.muted)),
-        ]),
-      );
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(sub, style: const TextStyle(fontSize: 15, color: Nx.muted)),
+      ],
+    ),
+  );
 
   Widget _section(String title, List<Widget> body) => Padding(
-        padding: const EdgeInsets.only(top: 18),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF8FB0FF))),
-          const SizedBox(height: 8),
-          ...body,
-        ]),
-      );
+    padding: const EdgeInsets.only(top: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Color(0xFF8FB0FF)),
+        ),
+        const SizedBox(height: 8),
+        ...body,
+      ],
+    ),
+  );
 
-  Widget _p(String text) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(text, style: const TextStyle(fontSize: 15, height: 1.5)));
+  Widget _p(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: Text(text, style: const TextStyle(fontSize: 15, height: 1.5)),
+  );
 
   Widget _bullets(List<String> items, {bool numbered = false}) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final (i, s) in items.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(width: 26, child: Text(numbered ? '${i + 1}.' : '•', style: const TextStyle(fontSize: 15, color: Nx.muted))),
-                Expanded(child: Text(s, style: const TextStyle(fontSize: 15, height: 1.45))),
-              ]),
-            ),
-        ],
-      );
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final (i, s) in items.indexed)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 26,
+                child: Text(numbered ? '${i + 1}.' : '•', style: const TextStyle(fontSize: 15, color: Nx.muted)),
+              ),
+              Expanded(child: Text(s, style: const TextStyle(fontSize: 15, height: 1.45))),
+            ],
+          ),
+        ),
+    ],
+  );
 
   Widget _box(String label, String text, {Color? color}) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(color: const Color(0xFF111827), borderRadius: BorderRadius.circular(10), border: Border.all(color: color ?? Nx.line)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 0), child: Text(label, style: TextStyle(fontSize: 12, color: color ?? Nx.muted, fontWeight: FontWeight.w600))),
-          Padding(padding: const EdgeInsets.all(12), child: Text(text, style: _mono)),
-        ]),
-      );
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFF111827),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: color ?? Nx.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 12, color: color ?? Nx.muted, fontWeight: FontWeight.w600),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(text, style: _mono),
+        ),
+      ],
+    ),
+  );
 
   Widget _code(String code, {String label = '', Color? border}) => CodeBlock(code, language: _codeLang(_track.langId), label: label, border: border);
 
@@ -237,12 +325,19 @@ class _LearnScreenState extends State<LearnScreen> {
       : Container(
           margin: const EdgeInsets.only(top: 6),
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: _warn.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(10), border: Border.all(color: _warn.withValues(alpha: 0.5))),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Icon(Icons.memory, size: 18, color: _warn),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Needs: $needs', style: const TextStyle(fontSize: 13.5, height: 1.4))),
-          ]),
+          decoration: BoxDecoration(
+            color: _warn.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _warn.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.memory, size: 18, color: _warn),
+              const SizedBox(width: 8),
+              Expanded(child: Text('Needs: $needs', style: const TextStyle(fontSize: 13.5, height: 1.4))),
+            ],
+          ),
         );
 
   Widget _runtime(Track t) {
@@ -251,33 +346,128 @@ class _LearnScreenState extends State<LearnScreen> {
       future: f,
       builder: (context, snap) {
         final (state, detail) = snap.data ?? ('checking', 'Checking what runs this here...');
-        final color = switch (state) { 'installed' || 'built-in' => _ok, 'simulated' => const Color(0xFF8FB0FF), 'checking' => Nx.muted, _ => Nx.stop };
+        final color = switch (state) {
+          'installed' || 'built-in' => _ok,
+          'simulated' => const Color(0xFF8FB0FF),
+          'checking' => Nx.muted,
+          _ => Nx.stop,
+        };
         return Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.5))),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: color.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
-              child: Text(state.toUpperCase(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
-            ),
-            const SizedBox(width: 10),
-            Expanded(child: Text(detail, style: const TextStyle(fontSize: 13.5))),
-          ]),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.5)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: color.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(6)),
+                child: Text(
+                  state.toUpperCase(),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: Text(detail, style: const TextStyle(fontSize: 13.5))),
+            ],
+          ),
         );
       },
     );
   }
 
+  /// Database track: which engine the student is learning on (shared with the Database workspace).
+  Widget _enginePicker() => Wrap(spacing: 10, crossAxisAlignment: WrapCrossAlignment.center, children: [
+        const Text('I am learning with:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+        SegmentedButton<SqlEngine>(
+          key: const Key('learn-engine'),
+          showSelectedIcon: false,
+          segments: const [ButtonSegment(value: SqlEngine.sqlite, label: Text('SQLite')), ButtonSegment(value: SqlEngine.mysql, label: Text('MySQL'))],
+          selected: {sqlEngine},
+          onSelectionChanged: (s) => setState(() => sqlEngine = s.first),
+        ),
+      ]);
+
+  /// What this lesson looks like on the chosen engine, with the other one underneath.
+  Widget _engines(Map<String, String> notes) {
+    final mine = sqlEngine.name, other = mine == 'sqlite' ? 'mysql' : 'sqlite';
+    String label(String e) => e == 'sqlite' ? 'SQLite' : 'MySQL';
+    return Container(
+      key: const Key('engine-note'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: const Color(0xFF00758F).withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFF00758F))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _enginePicker(),
+        const SizedBox(height: 8),
+        Text(notes[mine] ?? '', style: const TextStyle(fontSize: 14.5, height: 1.45)),
+        if (notes[other] != null) ...[
+          const SizedBox(height: 6),
+          Text('On ${label(other)} instead: ${notes[other]}', style: const TextStyle(fontSize: 13, height: 1.4, color: Nx.muted)),
+        ],
+      ]),
+    );
+  }
+
   String _outputLabel(Lesson l) => switch (_track.langId) {
-        'raspi' => 'Simulated result (NEXUS board, not real hardware)',
-        'arduino' => 'On a real board (NEXUS does not simulate Arduino)',
-        'web' => 'What the preview shows',
-        'php' when l.needs.isNotEmpty => 'What the page shows',
-        _ => 'Expected output',
-      };
+    'raspi' => 'Simulated result (NEXUS board, not real hardware)',
+    'arduino' => 'On a real board (NEXUS does not simulate Arduino)',
+    'web' => 'What the preview shows',
+    'php' when l.needs.isNotEmpty => 'What the page shows',
+    _ => 'Expected output',
+  };
 
   // ---------- pages ----------
+
+  List<Widget> _home() {
+    final wide = MediaQuery.sizeOf(context).width >= 700;
+    return [
+      _h1('Learn & Practice', 'Lessons, a quiz and checked exercises for every workspace. Pick one to start.'),
+      Wrap(
+        key: const Key('learn-home'),
+        spacing: 12,
+        runSpacing: 12,
+        children: [
+          for (final (ti, t) in tracks.indexed)
+            SizedBox(
+              width: wide ? 280 : double.infinity,
+              child: Material(
+                color: Nx.surface,
+                borderRadius: BorderRadius.circular(14),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => _go((t: ti, kind: _Kind.overview, i: 0)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(
+                      children: [
+                        LanguageBadge(_base(t), size: 40),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(t.title, style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w700)),
+                              Text(
+                                '${t.lessons.where((l) => _progress.get('read.${l.id}', false)).length} of ${t.lessons.length} lessons read',
+                                style: const TextStyle(fontSize: 12.5, color: Nx.muted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: Nx.muted),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ];
+  }
 
   List<Widget> _overview() {
     final t = _track;
@@ -285,12 +475,15 @@ class _LearnScreenState extends State<LearnScreen> {
     final best = _progress.get<num?>('quiz.${t.langId}.best', null);
     final passed = t.exercises.where((e) => _progress.get('ex.${e.id}.passed', false)).length;
     return [
-      Row(children: [
-        LanguageBadge(_base(t), size: 44),
-        const SizedBox(width: 14),
-        Expanded(child: _h1(t.title, '${t.lessons.length} lessons · ${t.quiz.length} quiz questions · ${t.exercises.length} exercises')),
-      ]),
+      Row(
+        children: [
+          LanguageBadge(_base(t), size: 44),
+          const SizedBox(width: 14),
+          Expanded(child: _h1(t.title, '${t.lessons.length} lessons · ${t.quiz.length} quiz questions · ${t.exercises.length} exercises')),
+        ],
+      ),
       _p(t.intro),
+      if (t.langId == 'sql') ...[const SizedBox(height: 8), _enginePicker()],
       _section('What runs your code', [Text(t.runtime, style: const TextStyle(fontSize: 14, height: 1.45)), const SizedBox(height: 8), _runtime(t)]),
       _section('How to run the examples', [_bullets(t.run, numbered: true)]),
       _section('Your progress', [
@@ -304,7 +497,10 @@ class _LearnScreenState extends State<LearnScreen> {
         for (final (i, l) in t.lessons.indexed)
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(_progress.get('read.${l.id}', false) ? Icons.check_circle : Icons.circle_outlined, color: _progress.get('read.${l.id}', false) ? _ok : Nx.muted),
+            leading: Icon(
+              _progress.get('read.${l.id}', false) ? Icons.check_circle : Icons.circle_outlined,
+              color: _progress.get('read.${l.id}', false) ? _ok : Nx.muted,
+            ),
             title: Text('${i + 1}. ${l.title}'),
             subtitle: Text(l.summary),
             onTap: () => _go((t: _page.t, kind: _Kind.lesson, i: i)),
@@ -318,6 +514,7 @@ class _LearnScreenState extends State<LearnScreen> {
     return [
       _h1(l.title, l.summary),
       _needs(l.needs),
+      if (l.engines.isNotEmpty) ...[const SizedBox(height: 10), _engines(l.engines)],
       _section('Objective', [_p(l.objective)]),
       _section('Explanation', [_p(l.explanation)]),
       _section('Syntax', [
@@ -325,22 +522,32 @@ class _LearnScreenState extends State<LearnScreen> {
         for (final (part, meaning) in l.syntaxNotes)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Flexible(flex: 2, child: Text(part, style: _mono.copyWith(color: const Color(0xFFFFD580)))),
-              const SizedBox(width: 12),
-              Flexible(flex: 3, child: Text(meaning, style: const TextStyle(fontSize: 14.5, height: 1.4))),
-            ]),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Flexible(
+                  flex: 2,
+                  child: Text(part, style: _mono.copyWith(color: const Color(0xFFFFD580))),
+                ),
+                const SizedBox(width: 12),
+                Flexible(flex: 3, child: Text(meaning, style: const TextStyle(fontSize: 14.5, height: 1.4))),
+              ],
+            ),
           ),
       ]),
       _section('Complete example', [
         _code(l.example, label: l.exampleFile.isEmpty ? _base(t).fileName : l.exampleFile),
-        Wrap(spacing: 8, runSpacing: 8, children: [
-          FilledButton.icon(
-            onPressed: _base(t).availableHere ? () => _tryInEditor(l) : null,
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Try in Editor'),
-          ),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.icon(
+              onPressed: _base(t).availableHere ? () => _tryInEditor(l) : null,
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Try in Editor'),
+            ),
+          ],
+        ),
         Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Text(
@@ -366,8 +573,10 @@ class _LearnScreenState extends State<LearnScreen> {
       _section('Practice task', [_p(l.practice)]),
       _section('References', [
         for (final r in l.refs) _RefTile(r, onFail: () => _say('Could not open the page. View Source needs the internet; this lesson works offline.')),
-        const Text('View Source opens the original page in your browser and needs the internet. The lesson above is written for NEXUS and works offline.',
-            style: TextStyle(fontSize: 12.5, color: Nx.muted)),
+        const Text(
+          'View Source opens the original page in your browser and needs the internet. The lesson above is written for NEXUS and works offline.',
+          style: TextStyle(fontSize: 12.5, color: Nx.muted),
+        ),
       ]),
     ];
   }
@@ -403,83 +612,127 @@ class _LearnScreenState extends State<LearnScreen> {
     final t = _track, ti = _page.t;
     final answers = _answers[ti] ??= {};
     final done = _submitted.contains(ti);
-    final score = [for (final (i, q) in t.quiz.indexed) if (answers[i] == q.answer) i].length;
+    final score = [
+      for (final (i, q) in t.quiz.indexed)
+        if (answers[i] == q.answer) i,
+    ].length;
     final best = _progress.get<num?>('quiz.${t.langId}.best', null);
     return [
-      _h1('${t.title} quiz', '${t.quiz.length} questions. Pick one answer each, then press Check answers.${best == null ? '' : ' Best so far: $best of ${t.quiz.length}.'}'),
+      _h1(
+        '${t.title} quiz',
+        '${t.quiz.length} questions. Pick one answer each, then press Check answers.${best == null ? '' : ' Best so far: $best of ${t.quiz.length}.'}',
+      ),
       for (final (i, q) in t.quiz.indexed)
         Card(
           color: Nx.surface,
           margin: const EdgeInsets.only(bottom: 12),
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${i + 1}. ${q.question}', style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 6),
-              RadioGroup<int>(
-                groupValue: answers[i],
-                onChanged: (v) => done ? null : setState(() => answers[i] = v!),
-                child: Column(children: [
-                  for (final (j, o) in q.options.indexed)
-                    RadioListTile<int>(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      value: j,
-                      enabled: !done,
-                      title: Text(o, style: TextStyle(
-                        color: !done ? null : j == q.answer ? _ok : answers[i] == j ? Nx.stop : null,
-                        fontWeight: done && j == q.answer ? FontWeight.w700 : null,
-                      )),
-                    ),
-                ]),
-              ),
-              if (done)
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(answers[i] == q.answer ? Icons.check_circle : Icons.cancel, size: 18, color: answers[i] == q.answer ? _ok : Nx.stop),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text('${answers[i] == q.answer ? 'Correct. ' : answers[i] == null ? 'Not answered. ' : 'Not quite. '}${q.why}', style: const TextStyle(fontSize: 13.5, height: 1.4))),
-                ]),
-            ]),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${i + 1}. ${q.question}', style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                RadioGroup<int>(
+                  groupValue: answers[i],
+                  onChanged: (v) => done ? null : setState(() => answers[i] = v!),
+                  child: Column(
+                    children: [
+                      for (final (j, o) in q.options.indexed)
+                        RadioListTile<int>(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          value: j,
+                          enabled: !done,
+                          title: Text(
+                            o,
+                            style: TextStyle(
+                              color: !done
+                                  ? null
+                                  : j == q.answer
+                                  ? _ok
+                                  : answers[i] == j
+                                  ? Nx.stop
+                                  : null,
+                              fontWeight: done && j == q.answer ? FontWeight.w700 : null,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (done)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(answers[i] == q.answer ? Icons.check_circle : Icons.cancel, size: 18, color: answers[i] == q.answer ? _ok : Nx.stop),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '${answers[i] == q.answer
+                              ? 'Correct. '
+                              : answers[i] == null
+                              ? 'Not answered. '
+                              : 'Not quite. '}${q.why}',
+                          style: const TextStyle(fontSize: 13.5, height: 1.4),
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         ),
       if (done)
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: Text('Score: $score of ${t.quiz.length}', key: const Key('quiz-score'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          child: Text(
+            'Score: $score of ${t.quiz.length}',
+            key: const Key('quiz-score'),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
         ),
-      Wrap(spacing: 8, children: [
-        if (!done)
-          FilledButton(
-            onPressed: answers.isEmpty
-                ? null
-                : () {
-                    setState(() => _submitted.add(ti));
-                    final s = [for (final (i, q) in t.quiz.indexed) if (answers[i] == q.answer) i].length;
-                    if (best == null || s > best) _progress.set('quiz.${t.langId}.best', s);
-                  },
-            child: const Text('Check answers'),
-          ),
-        if (done)
-          OutlinedButton.icon(
-            onPressed: () => setState(() {
-              _submitted.remove(ti);
-              answers.clear();
-            }),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try again'),
-          ),
-      ]),
+      Wrap(
+        spacing: 8,
+        children: [
+          if (!done)
+            FilledButton(
+              onPressed: answers.isEmpty
+                  ? null
+                  : () {
+                      setState(() => _submitted.add(ti));
+                      final s = [
+                        for (final (i, q) in t.quiz.indexed)
+                          if (answers[i] == q.answer) i,
+                      ].length;
+                      if (best == null || s > best) _progress.set('quiz.${t.langId}.best', s);
+                    },
+              child: const Text('Check answers'),
+            ),
+          if (done)
+            OutlinedButton.icon(
+              onPressed: () => setState(() {
+                _submitted.remove(ti);
+                answers.clear();
+              }),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try again'),
+            ),
+        ],
+      ),
     ];
   }
 
   String _howChecked(Exercise e) => switch (e.kind) {
-        CheckKind.output => 'Check runs your program with ${e.cases.length} test${e.cases.length == 1 ? '' : 's'} (10 seconds each) and compares what it prints.',
-        CheckKind.gpio => 'Check runs your program in the Raspberry Pi simulator with ${e.cases.length} test${e.cases.length == 1 ? '' : 's'} and compares what it prints and '
-            'the final pin states. This is a simulator check, not real hardware.',
-        CheckKind.compileOnly => 'Check only compiles your sketch for an Arduino Uno. What it does on a board is up to you to check, with the checklist.',
-        CheckKind.staticHtml => 'Check reads your files for the required parts; it does not run the page. How the page looks and behaves, you check with the checklist.',
-        CheckKind.manual => 'Nothing is checked automatically for this exercise. Build it, try it, and tick the checklist.',
-      };
+    CheckKind.output => 'Check runs your program with ${e.cases.length} test${e.cases.length == 1 ? '' : 's'} (10 seconds each) and compares what it prints.',
+    CheckKind.gpio =>
+      'Check runs your program in the Raspberry Pi simulator with ${e.cases.length} test${e.cases.length == 1 ? '' : 's'} and compares what it prints and '
+          'the final pin states. This is a simulator check, not real hardware.',
+    CheckKind.compileOnly => 'Check only compiles your sketch for an Arduino Uno. What it does on a board is up to you to check, with the checklist.',
+    CheckKind.staticHtml =>
+      'Check reads your files for the required parts; it does not run the page. How the page looks and behaves, you check with the checklist.',
+    CheckKind.manual => 'Nothing is checked automatically for this exercise. Build it, try it, and tick the checklist.',
+  };
 
   List<Widget> _exercise(Exercise e) {
     final base = _base(_track);
@@ -490,10 +743,19 @@ class _LearnScreenState extends State<LearnScreen> {
     final ticked = _progress.get<List>('ex.${e.id}.checklist', const []).cast<num>().toSet();
     final running = _checking == e.id;
     return [
-      Wrap(spacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [
-        Chip(label: Text(e.level), visualDensity: VisualDensity.compact),
-        if (passed) const Chip(avatar: Icon(Icons.check, color: _ok, size: 16), label: Text('Passed before'), visualDensity: VisualDensity.compact),
-      ]),
+      Wrap(
+        spacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Chip(label: Text(e.level), visualDensity: VisualDensity.compact),
+          if (passed)
+            const Chip(
+              avatar: Icon(Icons.check, color: _ok, size: 16),
+              label: Text('Passed before'),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
+      ),
       _h1(e.title, 'Exercise ${_page.i + 1} of ${_track.exercises.length}'),
       _p(e.task),
       _section('Requirements', [_bullets(e.requirements)]),
@@ -514,36 +776,43 @@ class _LearnScreenState extends State<LearnScreen> {
       _section('Starter code', [_code(e.starter, label: base.fileName)]),
       Padding(
         padding: const EdgeInsets.only(top: 12),
-        child: Wrap(spacing: 8, runSpacing: 8, children: [
-          FilledButton.tonalIcon(
-            onPressed: base.availableHere && !running ? () => _openExercise(e, lang) : null,
-            icon: const Icon(Icons.edit_outlined),
-            label: const Text('Open in Editor'),
-          ),
-          if (!running)
-            FilledButton.icon(
-              key: const Key('check'),
-              onPressed: base.availableHere && _checking == null ? () => _check(e, base) : null,
-              icon: const Icon(Icons.fact_check_outlined),
-              label: const Text('Check'),
-            )
-          else
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Nx.stop),
-              onPressed: () => _run?.stop(),
-              icon: const Icon(Icons.stop),
-              label: const Text('Stop'),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FilledButton.tonalIcon(
+              onPressed: base.availableHere && !running ? () => _openExercise(e, lang) : null,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Open in Editor'),
             ),
-          OutlinedButton.icon(
-            onPressed: base.availableHere && !running ? () => _startOver(e, lang) : null,
-            icon: const Icon(Icons.restart_alt),
-            label: const Text('Start over'),
-          ),
-        ]),
+            if (!running)
+              FilledButton.icon(
+                key: const Key('check'),
+                onPressed: base.availableHere && _checking == null ? () => _check(e, base) : null,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Check'),
+              )
+            else
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Nx.stop),
+                onPressed: () => _run?.stop(),
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
+            OutlinedButton.icon(
+              onPressed: base.availableHere && !running ? () => _startOver(e, lang) : null,
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('Start over'),
+            ),
+          ],
+        ),
       ),
       Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Text('Your code for this exercise is kept in practice/${e.id}, apart from your own files.', style: const TextStyle(fontSize: 12.5, color: Nx.muted)),
+        child: Text(
+          'Your code for this exercise is kept in practice/${e.id}, apart from your own files.',
+          style: const TextStyle(fontSize: 12.5, color: Nx.muted),
+        ),
       ),
       if (running) const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator()),
       if (r != null && !running) _resultView(r),
@@ -591,30 +860,56 @@ class _LearnScreenState extends State<LearnScreen> {
     final (icon, color, title) = r.passed
         ? (Icons.check_circle, _ok, 'Passed: ${r.cases.length} of ${r.cases.length} checks')
         : r.automatic
-            ? (Icons.cancel, Nx.stop, 'Not passed yet: ${r.cases.where((c) => c.passed).length} of ${r.cases.length} checks')
-            : (Icons.info_outline, _warn, 'Not checked automatically');
+        ? (Icons.cancel, Nx.stop, 'Not passed yet: ${r.cases.where((c) => c.passed).length} of ${r.cases.length} checks')
+        : (Icons.info_outline, _warn, 'Not checked automatically');
     return Container(
       key: const Key('result'),
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(10), border: Border.all(color: color.withValues(alpha: 0.6))),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(icon, color: color),
-          const SizedBox(width: 8),
-          Expanded(child: Text(title, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color))),
-        ]),
-        if (r.message.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(r.message, style: const TextStyle(fontSize: 14))),
-        for (final c in r.cases) ...[
-          const SizedBox(height: 8),
-          Row(children: [
-            Icon(c.passed ? Icons.check : Icons.close, size: 18, color: c.passed ? _ok : Nx.stop),
-            const SizedBox(width: 6),
-            Expanded(child: Text(c.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600))),
-          ]),
-          if (c.detail.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 24, top: 4), child: Text(c.detail, style: _mono.copyWith(fontSize: 12.5))),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color),
+                ),
+              ),
+            ],
+          ),
+          if (r.message.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(r.message, style: const TextStyle(fontSize: 14)),
+            ),
+          for (final c in r.cases) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(c.passed ? Icons.check : Icons.close, size: 18, color: c.passed ? _ok : Nx.stop),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(c.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            if (c.detail.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 24, top: 4),
+                child: Text(c.detail, style: _mono.copyWith(fontSize: 12.5)),
+              ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 
@@ -712,49 +1007,67 @@ class _Sidebar extends StatelessWidget {
     }
 
     final results = s._query.trim().isEmpty ? null : s._search(s._query);
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: TextField(
-          key: const Key('learn-search'),
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            hintText: 'Search: language, topic, function...',
-            isDense: true,
-            border: OutlineInputBorder(),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: TextField(
+            key: const Key('learn-search'),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              hintText: 'Search: language, topic, function...',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            onChanged: s._setQuery,
           ),
-          onChanged: s._setQuery,
         ),
-      ),
-      Expanded(
-        child: results != null
-            ? (results.isEmpty
-                ? const Padding(padding: EdgeInsets.all(16), child: Text('No lessons match. Try a shorter word, like "loop" or "printf".', style: TextStyle(color: Nx.muted)))
-                : ListView(children: [
-                    for (final (p, title, sub) in results)
-                      ListTile(dense: true, title: Text(title), subtitle: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis), onTap: () => go(p)),
-                  ]))
-            : ListView(children: [
-                for (final (ti, t) in tracks.indexed)
-                  ExpansionTile(
-                    key: PageStorageKey('track-${t.langId}'),
-                    initiallyExpanded: s._open.contains(ti),
-                    onExpansionChanged: (o) => o ? s._open.add(ti) : s._open.remove(ti),
-                    leading: LanguageBadge(_base(t), size: 26),
-                    title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    children: [
-                      item((t: ti, kind: _Kind.overview, i: 0), 'Overview', icon: Icons.info_outline),
-                      for (final (i, l) in t.lessons.indexed)
-                        item((t: ti, kind: _Kind.lesson, i: i), '${i + 1}. ${l.title}', done: _progress.get('read.${l.id}', false)),
-                      item((t: ti, kind: _Kind.quiz, i: 0), 'Quiz', icon: Icons.quiz_outlined),
-                      for (final (i, e) in t.exercises.indexed)
-                        item((t: ti, kind: _Kind.exercise, i: i), '${e.level}: ${e.title}',
-                            icon: Icons.fitness_center_outlined, done: _progress.get('ex.${e.id}.passed', false)),
-                    ],
-                  ),
-              ]),
-      ),
-    ]);
+        Expanded(
+          child: results != null
+              ? (results.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No lessons match. Try a shorter word, like "loop" or "printf".', style: TextStyle(color: Nx.muted)),
+                      )
+                    : ListView(
+                        children: [
+                          for (final (p, title, sub) in results)
+                            ListTile(
+                              dense: true,
+                              title: Text(title),
+                              subtitle: Text(sub, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              onTap: () => go(p),
+                            ),
+                        ],
+                      ))
+              : ListView(
+                  children: [
+                    for (final (ti, t) in tracks.indexed)
+                      ExpansionTile(
+                        key: PageStorageKey('track-${t.langId}'),
+                        initiallyExpanded: s._open.contains(ti),
+                        onExpansionChanged: (o) => o ? s._open.add(ti) : s._open.remove(ti),
+                        leading: LanguageBadge(_base(t), size: 26),
+                        title: Text(t.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        children: [
+                          item((t: ti, kind: _Kind.overview, i: 0), 'Overview', icon: Icons.info_outline),
+                          for (final (i, l) in t.lessons.indexed)
+                            item((t: ti, kind: _Kind.lesson, i: i), '${i + 1}. ${l.title}', done: _progress.get('read.${l.id}', false)),
+                          item((t: ti, kind: _Kind.quiz, i: 0), 'Quiz', icon: Icons.quiz_outlined),
+                          for (final (i, e) in t.exercises.indexed)
+                            item(
+                              (t: ti, kind: _Kind.exercise, i: i),
+                              '${e.level}: ${e.title}',
+                              icon: Icons.fitness_center_outlined,
+                              done: _progress.get('ex.${e.id}.passed', false),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+        ),
+      ],
+    );
   }
 }
 
@@ -765,27 +1078,36 @@ class _RefTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.menu_book_outlined, size: 18, color: Nx.muted),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(Icons.menu_book_outlined, size: 18, color: Nx.muted),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(r.title, style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
-              Text([r.publisher, if (r.version.isNotEmpty) r.version, 'checked ${r.verified}'].join(' · '), style: const TextStyle(fontSize: 12.5, color: Nx.muted)),
+              Text(
+                [r.publisher, if (r.version.isNotEmpty) r.version, 'checked ${r.verified}'].join(' · '),
+                style: const TextStyle(fontSize: 12.5, color: Nx.muted),
+              ),
               Text(r.url, style: const TextStyle(fontSize: 12, color: Color(0xFF8FB0FF))),
-            ]),
+            ],
           ),
-          TextButton.icon(
-            onPressed: () async {
-              final ok = await launchUrl(Uri.parse(r.url), mode: LaunchMode.externalApplication).catchError((_) => false);
-              if (!ok) onFail();
-            },
-            icon: const Icon(Icons.open_in_new, size: 16),
-            label: const Text('View Source'),
-          ),
-        ]),
-      );
+        ),
+        TextButton.icon(
+          onPressed: () async {
+            final ok = await launchUrl(Uri.parse(r.url), mode: LaunchMode.externalApplication).catchError((_) => false);
+            if (!ok) onFail();
+          },
+          icon: const Icon(Icons.open_in_new, size: 16),
+          label: const Text('View Source'),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Read-only highlighted code with a Copy button (lessons, starters, solutions).
@@ -797,13 +1119,25 @@ class CodeBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 8),
-        decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(10), border: Border.all(color: border ?? Nx.line)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
+    width: double.infinity,
+    margin: const EdgeInsets.only(bottom: 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFF1E1E1E),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: border ?? Nx.line),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
             const SizedBox(width: 12),
-            Expanded(child: Text(label ?? '', style: TextStyle(fontSize: 12, color: border ?? Nx.muted, fontWeight: FontWeight.w600))),
+            Expanded(
+              child: Text(
+                label ?? '',
+                style: TextStyle(fontSize: 12, color: border ?? Nx.muted, fontWeight: FontWeight.w600),
+              ),
+            ),
             IconButton(
               tooltip: 'Copy code',
               visualDensity: VisualDensity.compact,
@@ -815,17 +1149,22 @@ class CodeBlock extends StatelessWidget {
                   ..showSnackBar(const SnackBar(content: Text('Code copied'), duration: Duration(seconds: 2)));
               },
             ),
-          ]),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: HighlightView(
-              code.trimRight(),
-              language: language,
-              theme: {...vs2015Theme, 'root': vs2015Theme['root']!.copyWith(backgroundColor: Colors.transparent)},
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              textStyle: _mono,
-            ),
+          ],
+        ),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: HighlightView(
+            code.trimRight(),
+            language: language,
+            theme: {
+              ...vs2015Theme,
+              'root': vs2015Theme['root']!.copyWith(backgroundColor: Colors.transparent),
+            },
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            textStyle: _mono,
           ),
-        ]),
-      );
+        ),
+      ],
+    ),
+  );
 }

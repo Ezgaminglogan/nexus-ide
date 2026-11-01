@@ -18,19 +18,21 @@ typedef SourceLocation = ({String file, int line});
 /// Turns a path in a message into a workspace file, or null if it isn't one.
 typedef LocateFile = String? Function(String path);
 
+/// (pattern, file group, line group) for the messages compilers and runtimes print.
 final _locationPatterns = [
-  RegExp(r'File "([^"]+)", line (\d+)'), // Python
-  RegExp(r'ERROR in (\S+) \(at line (\d+)\)'), // ecj (Java on phones)
-  RegExp(r'in (\S+\.php) on line (\d+)'), // PHP
-  RegExp(r'((?:[A-Za-z]:)?[^\s:()"]+\.(?:c|h|cpp|ino|java|cs|py|php|js))(?::|\()(\d+)'), // gcc, tcc, javac, csc, arduino-cli
+  (RegExp(r'File "([^"]+)", line (\d+)'), 1, 2), // Python
+  (RegExp(r'ERROR in (\S+) \(at line (\d+)\)'), 1, 2), // ecj (Java on phones)
+  (RegExp(r'in (\S+\.php) on line (\d+)'), 1, 2), // PHP
+  (RegExp(r"at line (\d+) in file: '([^']+)'"), 2, 1), // MySQL client, NEXUS's SQLite runner
+  (RegExp(r'((?:[A-Za-z]:)?[^\s:()"]+\.(?:c|h|cpp|ino|java|cs|py|php|js))(?::|\()(\d+)'), 1, 2), // gcc, tcc, javac, csc, arduino-cli
 ];
 
 /// The first source location in [line] that is a file of this project.
 SourceLocation? findLocation(String line, LocateFile locate) {
-  for (final re in _locationPatterns) {
+  for (final (re, f, l) in _locationPatterns) {
     for (final m in re.allMatches(line)) {
-      final file = locate(m[1]!);
-      if (file != null) return (file: file, line: int.parse(m[2]!));
+      final file = locate(m[f]!);
+      if (file != null) return (file: file, line: int.parse(m[l]!));
     }
   }
   return null;

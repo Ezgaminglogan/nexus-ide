@@ -11,6 +11,22 @@ Future<String> get(Uri url) => HttpOverrides.runWithHttpOverrides(() => _get(url
 
 class _Real extends HttpOverrides {}
 
+/// POSTs a form, then GETs the page again (as the browser does after a redirect).
+Future<String> post(Uri url, String form) => HttpOverrides.runWithHttpOverrides(() async {
+      final c = HttpClient();
+      try {
+        final req = await c.postUrl(url)
+          ..headers.contentType = ContentType('application', 'x-www-form-urlencoded')
+          ..write(form);
+        await (await req.close()).drain<void>();
+        return await _get(url);
+      } finally {
+        c.close();
+      }
+    }, _Real());
+
+const _mysqlExe = r'C:\xampp\mysql\bin\mysql.exe';
+
 Future<String> _get(Uri url) async {
   final c = HttpClient();
   try {
@@ -28,20 +44,43 @@ void main() {
   });
   tearDown(() => LocalServer.instance.stop());
 
-  test('projects are folders in htdocs; index.php makes a PHP project; names must work in a URL', () {
-    expect(createProject('guestbook', php: true), isNull);
-    expect(createProject('portfolio', php: false), isNull);
+  test('projects are folders in htdocs; index.php makes a PHP project; names must work in a URL', () async {
+    expect(await createProject('guestbook', stack: 'php-mysql'), isNull);
+    expect(await createProject('portfolio', stack: 'html'), isNull);
     expect(File('$htdocsDir/guestbook/index.php').existsSync(), isTrue);
     expect(File('$htdocsDir/portfolio/index.html').existsSync(), isTrue);
-    expect(listProjects(), [(name: 'guestbook', php: true), (name: 'portfolio', php: false)]);
+    expect([for (final p in listProjects()) (p.name, p.php, p.stack.label)], [('guestbook', true, 'PHP + MySQL'), ('portfolio', false, 'HTML + CSS + JS')]);
     expect(projectLanguage('guestbook').id, 'php');
     expect(projectLanguage('portfolio').id, 'web');
     expect(RunSession.workDir(projectLanguage('guestbook')).path, endsWith('htdocs${Platform.pathSeparator}guestbook'));
-    expect(createProject('Guestbook', php: true), contains('already exists'));
-    expect(createProject('my site', php: true), contains('letters, numbers'));
-    expect(createProject('../out', php: true), contains('letters, numbers'));
-    expect(Directory(htdocsDir).listSync().length, 2);
+    expect(await createProject('Guestbook', stack: 'php-mysql'), contains('already exists'));
+    expect(await createProject('my site', stack: 'php-mysql'), contains('letters, numbers'));
+    expect(await createProject('../out', stack: 'php-mysql'), contains('letters, numbers'));
+    expect(Directory(htdocsDir).listSync().length, 2); // nothing half-made by the refused names
   });
+
+  test('stacks: SQLite guest book saves a name; Bootstrap ships offline; Bootstrap + MySQL adds a student', () async {
+    expect(await createProject('book', stack: 'php-sqlite'), isNull);
+    expect(await createProject('styled', stack: 'html-bootstrap'), isNull);
+    expect(await createProject('crud', stack: 'php-bootstrap-mysql'), isNull);
+    expect([for (final p in listProjects()) p.stack.label], ['PHP + SQLite', 'PHP + Bootstrap + MySQL', 'HTML + Bootstrap 5']);
+    expect(File('$htdocsDir/styled/assets/bootstrap/css/bootstrap.min.css').readAsStringSync(), contains('Bootstrap  v5.3.8'));
+    expect(File('$htdocsDir/crud/assets/bootstrap/js/bootstrap.bundle.min.js').existsSync(), isTrue);
+    expect(Directory('$htdocsDir/book/assets').existsSync(), isFalse);
+
+    final s = LocalServer.instance;
+    expect(await s.ensure(htdocsDir), isTrue, reason: s.error);
+    expect(await post(s.url('book'), 'name=Ana+%3Cb%3E'), allOf(startsWith('200 '), contains('Ana &lt;b&gt;'), isNot(contains('Database:'))));
+    expect(File('$htdocsDir/book/guestbook.db').existsSync(), isTrue);
+    expect(await get(Uri.parse('${s.origin}/styled/assets/bootstrap/css/bootstrap.min.css')), startsWith('200 @charset'));
+    expect(await get(s.url('styled')), contains('<nav class="navbar'));
+
+    if (Process.runSync(_mysqlExe, ['-h', '127.0.0.1', '-u', 'root', '-e', 'SELECT 1']).exitCode == 0) {
+      final name = 'Test${DateTime.now().millisecondsSinceEpoch}';
+      expect(await post(s.url('crud'), 'name=$name&course=BEEd'), allOf(contains(name), contains('BEEd'), isNot(contains('alert-danger'))));
+      Process.runSync(_mysqlExe, ['-h', '127.0.0.1', '-u', 'root', 'nexus', '-e', "DELETE FROM crud_students WHERE name = '$name'"]);
+    }
+  }, skip: Platform.isWindows ? false : 'needs PHP on PATH (this PC: XAMPP)');
 
   test('the old PHP and Web folders are copied into htdocs once, and stay where they were', () {
     File('${Toolchains.workRoot}/php/pages/about.php')
@@ -60,7 +99,7 @@ void main() {
   });
 
   test('one server for htdocs answers at localhost/<project>/, on port 80 when free', () async {
-    createProject('hello', php: true);
+    await createProject('hello', stack: 'php-mysql');
     File('$htdocsDir/hello/index.php').writeAsStringSync('<?php echo "hi from " . basename(__DIR__) . " at " . \$_SERVER["REQUEST_URI"];');
     File('$htdocsDir/hello/about.php').writeAsStringSync('<?php echo "about";');
     final s = LocalServer.instance;
@@ -81,7 +120,7 @@ void main() {
     } on SocketException {
       // something already serves port 80 on this PC: the same situation
     }
-    createProject('site', php: false);
+    await createProject('site', stack: 'html');
     final s = LocalServer.instance;
     expect(await s.ensure(htdocsDir), isTrue, reason: s.error);
     expect(s.port, isNot(80));
@@ -94,7 +133,7 @@ void main() {
     t.view.physicalSize = const Size(1280, 900);
     t.view.devicePixelRatio = 1;
     addTearDown(t.view.reset);
-    createProject('portfolio', php: false);
+    await createProject('portfolio', stack: 'html');
     await t.pumpWidget(NexusApp(ready: Future.value()));
     await t.pumpAndSettle();
     await t.tap(find.text('Server pages · MySQL'));

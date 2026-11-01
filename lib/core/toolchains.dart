@@ -10,11 +10,13 @@ import 'package:highlight/languages/java.dart';
 import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/php.dart';
 import 'package:highlight/languages/python.dart';
+import 'package:highlight/languages/sql.dart';
 import 'package:highlight/languages/xml.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import 'arduino.dart';
+import 'database.dart';
 import 'raspi.dart';
 import 'workspace.dart' as ws;
 
@@ -124,11 +126,18 @@ class Toolchains {
 
   static String bundledPath(String tool) => p.join(toolsDir, tool + _ext);
 
-  /// Bundled tool if present, otherwise the bare name so PATH can find it (dev machines).
+  /// Where XAMPP keeps its tools on a lab PC (php/php, mysql/bin/mysql...).
+  static String xamppDir = r'C:\xampp';
+
+  /// Bundled tool if present, then XAMPP's copy (Windows), otherwise the bare name so PATH can
+  /// find it (dev machines).
   static String resolve(String tool, String workDir) {
     if (tool.startsWith('./')) return p.join(workDir, tool.substring(2) + _ext);
     final bundled = bundledPath(tool);
-    return File(bundled).existsSync() ? bundled : p.basename(tool);
+    if (File(bundled).existsSync()) return bundled;
+    final xampp = p.joinAll([xamppDir, ...tool.split('/')]) + _ext;
+    if (Platform.isWindows && File(xampp).existsSync()) return xampp;
+    return p.basename(tool);
   }
 
   /// The steps for this platform (or [steps], e.g. an Arduino action), with `{tools}` and
@@ -361,6 +370,27 @@ final languages = <Language>[
     ],
     words: ['echo', 'isset', 'mysqli', 'query', 'prepare', 'bind_param', 'execute', 'fetch_assoc', 'fetch_all',
         '\$_POST', '\$_GET', 'htmlspecialchars', 'foreach', 'array', 'count', 'strlen'],
+  ),
+  Language(
+    id: 'sql',
+    color: 0xFF00758F,
+    blurb: 'SQL · SQLite or MySQL',
+    description: 'Make tables, add rows and ask questions with SELECT. Run it on SQLite (built in, no server) or on MySQL (XAMPP on PCs).',
+    label: 'Database',
+    fileName: 'main.sql',
+    mode: sql,
+    template: sqlTemplate,
+    // SQLite through Python's sqlite3 (bundled on PCs and phones); the editor swaps in
+    // mysqlSteps when MySQL is chosen (database.dart).
+    steps: [
+      (tool: 'python/python', args: ['-u', 'run_sql.py', 'main.sql']),
+    ],
+    androidSteps: [
+      (tool: 'bin/python3', args: ['-u', 'run_sql.py', 'main.sql']),
+    ],
+    extraFiles: {'run_sql.py': sqliteRunner},
+    words: ['SELECT', 'FROM', 'WHERE', 'ORDER BY', 'GROUP BY', 'HAVING', 'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
+        'CREATE TABLE', 'DROP TABLE', 'PRIMARY KEY', 'FOREIGN KEY', 'REFERENCES', 'JOIN', 'LEFT JOIN', 'COUNT', 'AVG', 'SUM', 'LIMIT'],
   ),
   Language(
     id: 'raspi',

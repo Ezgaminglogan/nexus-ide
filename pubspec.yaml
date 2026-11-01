@@ -94,6 +94,10 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/stacks/bootstrap/
+    - assets/raspi/
+    - assets/stacks/bootstrap/css/
+    - assets/stacks/bootstrap/js/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

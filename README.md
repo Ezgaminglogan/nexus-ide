@@ -25,7 +25,8 @@ Get the Android APK from the [latest release](../../releases/latest). It's a sid
 | **Arduino** (Uno, Nano) | avr-gcc on the phone + upload over **USB OTG**, Serial Monitor | arduino-cli (also Mega 2560) |
 | **Web** (HTML, CSS, JS) | Editor, **drag-and-drop designer**, in-app preview | Editor, designer, opens in the browser |
 | **PHP + MySQL** | Projects in `htdocs`, viewed in-app at `localhost:8080/<project>/`; PHP + MariaDB | Projects in `htdocs`, opened in your browser at `localhost/<project>/` (8080 if XAMPP's Apache has port 80); PHP from XAMPP or `toolchains/php` + MySQL ([details](docs/NEXUS_HTDOCS.md)) |
-| **Raspberry Pi** (GPIO simulator) | Python with a stand-in `RPi.GPIO`: LEDs and buttons in a live 40-pin panel | Same |
+| **Database** (SQL) | SQLite built in; MySQL via the bundled MariaDB | SQLite built in; MySQL via XAMPP ([details](docs/NEXUS_DATABASES_AND_STACKS.md)) |
+| **Raspberry Pi** (GPIO simulator) | Python with a stand-in `RPi.GPIO`: LEDs and buttons in a live 40-pin panel, flat or on a 3D Raspberry Pi 3 you can turn ([details](docs/NEXUS_RASPI_3D.md)) | Same |
 
 Also: syntax highlighting and autocomplete, a coding key bar for phone keyboards, VS Code-style auto-indent (Enter after `{` or an opening tag), a **Format** button that indents C-style code and HTML/PHP, multiple files per Web/PHP project, a terminal that only appears when a program runs, and on Windows a full-screen VS Code-style layout (language bar on the left, terminal docked on the right).
 
@@ -79,3 +80,5 @@ Run the tests with `flutter test`.
 **Developed by Logan M. Panucat** · [GitHub](https://github.com/Ezgaminglogan) · [LinkedIn](https://www.linkedin.com/in/logan-panucat-b319562a9/) · [Facebook](https://www.facebook.com/Cflogan.Panucat2nd)
 
 *Made with ❤️ for the students of Cebu Technological University – Naga Extension Campus.*
+
+3D model: "Raspberry Pi 3" by JoSaCo ([Sketchfab](https://sketchfab.com/3d-models/raspberry-pi-3-2d308283fc0f4d27b81f17a2793c5c4d)), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).

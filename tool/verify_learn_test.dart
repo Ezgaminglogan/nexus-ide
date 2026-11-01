@@ -14,8 +14,13 @@ import 'package:nexus_ide/learn/tracks.dart';
 
 Language lang(String id) => languages.firstWhere((l) => l.id == id);
 
+/// XAMPP's MySQL answers on this PC (the Database track is then also checked on MySQL).
+final mysqlHere = Platform.isWindows &&
+    File(r'C:\xampp\mysql\bin\mysql.exe').existsSync() &&
+    Process.runSync(r'C:\xampp\mysql\bin\mysql.exe', ['-h', '127.0.0.1', '-u', 'root', '-e', 'SELECT 1']).exitCode == 0;
+
 /// Lessons whose result is visible behaviour (a page, a board) rather than printed lines.
-bool printable(Track t, Lesson l) => !{'web', 'arduino'}.contains(t.langId) && !(t.langId == 'php' && l.needs.isNotEmpty);
+bool printable(Track t, Lesson l) => !{'web', 'arduino'}.contains(t.langId) && !({'php', 'sql'}.contains(t.langId) && l.needs.isNotEmpty);
 
 void main() {
   setUpAll(() {
@@ -45,6 +50,15 @@ void main() {
           final r = await checkExercise(lang(t.langId), ex, PracticeRun(), code: l.example);
           expect(r.passed, isTrue, reason: '${r.message}\n${r.cases.map((c) => c.detail).join('\n')}');
         }, timeout: const Timeout(Duration(minutes: 5)));
+      }
+      // Database: the same examples must also run on MySQL (XAMPP), when it is running here.
+      for (final l in t.lessons.where((l) => t.langId == 'sql' && printable(t, l))) {
+        test('lesson ${l.id} also runs on MySQL', () async {
+          final ex = Exercise(id: 'verify-mysql-${l.id}', level: '', title: l.title, task: '', starter: '', requirements: const [], criteria: '', hint: '',
+              solution: '', cases: [TestCase(expect: l.checks)]);
+          final r = await checkExercise(lang(t.langId), ex, PracticeRun(), code: l.example, steps: mysqlSteps(database: mysqlDatabaseFor(exerciseLanguage(lang(t.langId), ex))));
+          expect(r.passed, isTrue, reason: '${r.message}\n${r.cases.map((c) => c.detail).join('\n')}');
+        }, timeout: const Timeout(Duration(minutes: 2)), skip: mysqlHere ? false : 'XAMPP MySQL is not running');
       }
       // Sketches can't run here; at least each one must compile for an Uno.
       for (final l in t.lessons.where((l) => t.langId == 'arduino')) {

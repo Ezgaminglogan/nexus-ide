@@ -43,23 +43,28 @@ class _HtdocsScreenState extends State<HtdocsScreen> {
 
   Future<void> _new() async {
     final name = TextEditingController();
-    var php = widget.php;
+    var stack = widget.php ? 'php-mysql' : 'html';
     String? error;
+    var busy = false;
     final made = await showDialog<String>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, set) {
-          void create() {
-            error = createProject(name.text.trim(), php: php);
+          Future<void> create() async {
+            if (busy) return;
+            set(() => busy = true);
+            error = await createProject(name.text.trim(), stack: stack);
+            if (!context.mounted) return;
             if (error == null) return Navigator.pop(context, name.text.trim());
-            set(() {});
+            set(() => busy = false);
           }
 
           final n = name.text.trim();
           return AlertDialog(
             title: const Text('New project'),
+            scrollable: true,
             content: SizedBox(
-              width: 460,
+              width: 480,
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 TextField(
                   key: const Key('project-name'),
@@ -70,23 +75,32 @@ class _HtdocsScreenState extends State<HtdocsScreen> {
                   onSubmitted: (_) => create(),
                 ),
                 const SizedBox(height: 14),
-                SegmentedButton<bool>(
-                  segments: const [
-                    ButtonSegment(value: true, label: Text('PHP site'), icon: Icon(Icons.storage_outlined)),
-                    ButtonSegment(value: false, label: Text('HTML site'), icon: Icon(Icons.html_outlined)),
-                  ],
-                  selected: {php},
-                  onSelectionChanged: (s) => set(() => php = s.first),
+                const Text('Tech stack', style: TextStyle(fontSize: 13, color: Nx.muted)),
+                RadioGroup<String>(
+                  groupValue: stack,
+                  onChanged: (v) => set(() => stack = v!),
+                  child: Column(children: [
+                    for (final s in techStacks)
+                      RadioListTile<String>(
+                        key: Key('stack-${s.id}'),
+                        value: s.id,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(s.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(s.about, style: const TextStyle(fontSize: 12)),
+                      ),
+                  ]),
                 ),
-                const SizedBox(height: 14),
-                Text('Folder: htdocs/${n.isEmpty ? '<name>' : n}/  ·  starts with ${php ? 'index.php' : 'index.html'}', style: const TextStyle(fontSize: 13, color: Nx.muted)),
+                const SizedBox(height: 8),
+                Text('Folder: htdocs/${n.isEmpty ? '<name>' : n}/  ·  starts with ${stackById(stack).php ? 'index.php' : 'index.html'}',
+                    style: const TextStyle(fontSize: 13, color: Nx.muted)),
                 const SizedBox(height: 4),
                 Text('Address: ${_address(n.isEmpty ? '<name>' : n)}', style: const TextStyle(fontSize: 13, color: Nx.muted)),
               ]),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-              FilledButton(key: const Key('project-create'), onPressed: create, child: const Text('Create')),
+              FilledButton(key: const Key('project-create'), onPressed: busy ? null : create, child: const Text('Create')),
             ],
           );
         },
@@ -258,7 +272,7 @@ class _HtdocsScreenState extends State<HtdocsScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(pr.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 Text(_address(pr.name), style: const TextStyle(fontSize: 12.5, color: Color(0xFF8FB0FF), fontFamily: 'Consolas', fontFamilyFallback: ['monospace'])),
-                Text(pr.php ? 'PHP site' : 'HTML site', style: const TextStyle(fontSize: 12, color: Nx.muted)),
+                Text(pr.stack.label, style: const TextStyle(fontSize: 12, color: Nx.muted)),
               ]),
             ),
             IconButton(

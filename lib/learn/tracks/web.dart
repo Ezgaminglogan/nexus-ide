@@ -381,6 +381,74 @@ title.classList.add("big");''',
       keywords: ['form', 'input', 'label', 'required', 'validation', 'submit', 'FormData'],
     ),
     Lesson(
+      id: 'web-bootstrap',
+      title: 'Frameworks: Bootstrap',
+      summary: 'Ready-made responsive layout and components from CSS classes.',
+      objective: 'Build a responsive page with Bootstrap\'s grid, a navbar, cards and buttons.',
+      explanation: 'A CSS framework is a stylesheet (and a little JavaScript) that someone else wrote, so you style pages by adding classes instead of '
+          'writing CSS. Bootstrap is the most used one. Its grid splits a row into 12 columns: col-md-4 means "4 of 12 columns (a third) on medium '
+          'screens and up, full width on phones". Components such as .navbar, .card, .btn and .form-control come styled. In NEXUS, a project made '
+          'with the "HTML + Bootstrap 5" or "PHP + Bootstrap + MySQL" stack already contains Bootstrap in assets/bootstrap, so it works offline. '
+          'Other frameworks you will meet: Tailwind CSS (utility classes), and for JavaScript, React or Vue; for PHP, Laravel.',
+      syntax: r'''<link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+<div class="container">
+  <div class="row g-3">
+    <div class="col-12 col-md-4">...</div>
+  </div>
+</div>
+<script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>''',
+      syntaxNotes: [
+        ('container', 'Centred content with side margins.'),
+        ('row / col-12 col-md-4', 'Full width on phones, a third from medium screens up.'),
+        ('g-3', 'Gaps between the columns.'),
+        ('btn btn-primary', 'A styled button (primary = the main colour).'),
+        ('bootstrap.bundle.min.js', 'Makes the navbar menu, dropdowns and modals work.'),
+      ],
+      example: r'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Courses</title>
+  <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+</head>
+<body>
+  <main class="container py-4">
+    <h1 class="mb-3">Our courses</h1>
+    <div class="row g-3">
+      <div class="col-12 col-md-4"><div class="card"><div class="card-body"><h5 class="card-title">BSIT</h5><p class="card-text">Information Technology</p></div></div></div>
+      <div class="col-12 col-md-4"><div class="card"><div class="card-body"><h5 class="card-title">BEEd</h5><p class="card-text">Elementary Education</p></div></div></div>
+      <div class="col-12 col-md-4"><div class="card"><div class="card-body"><h5 class="card-title">BSIE</h5><p class="card-text">Industrial Engineering</p></div></div></div>
+    </div>
+    <button class="btn btn-primary mt-4">Enroll now</button>
+  </main>
+  <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+''',
+      run: [
+        'In htdocs press New project and pick the "HTML + Bootstrap 5" stack (it brings assets/bootstrap with it).',
+        'Paste the example into index.html.',
+        'Press Open in browser (View on a phone) and make the window narrow, then wide.',
+      ],
+      output: 'Wide: three cards side by side and a blue button. Narrow (phone): the cards stack one under another.',
+      lines: [
+        'No CSS was written: every look comes from Bootstrap classes.',
+        'col-12 col-md-4 is how one page fits both phones and PCs.',
+      ],
+      mistake: 'Forgetting the stylesheet link (or a wrong path): the classes do nothing and the page looks plain.',
+      mistakeCode: r'''<link rel="stylesheet" href="bootstrap.min.css">''',
+      fixCode: r'''<link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">''',
+      practice: 'Add a Bootstrap navbar with three links and a contact form using .form-control and .btn.',
+      refs: [
+        Ref('Get started with Bootstrap', 'Bootstrap (getbootstrap.com)', 'https://getbootstrap.com/docs/5.3/getting-started/introduction/', version: 'Bootstrap 5.3 (NEXUS bundles 5.3.8)'),
+        Ref('Grid system', 'Bootstrap (getbootstrap.com)', 'https://getbootstrap.com/docs/5.3/layout/grid/', version: 'Bootstrap 5.3'),
+        Ref('Navbar', 'Bootstrap (getbootstrap.com)', 'https://getbootstrap.com/docs/5.3/components/navbar/', version: 'Bootstrap 5.3'),
+        Ref('Forms', 'Bootstrap (getbootstrap.com)', 'https://getbootstrap.com/docs/5.3/forms/overview/', version: 'Bootstrap 5.3'),
+      ],
+      keywords: ['bootstrap', 'framework', 'tech stack', 'grid', 'container', 'row', 'col', 'navbar', 'card', 'btn', 'responsive', 'tailwind', 'laravel'],
+    ),
+    Lesson(
       id: 'web-designer',
       title: 'The NEXUS page designer',
       summary: 'Build a page by dragging blocks, then read the HTML it writes.',

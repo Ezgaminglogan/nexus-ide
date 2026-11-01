@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/raspi.dart';
+import '../../core/settings.dart';
 import '../theme.dart';
+import 'pi3d.dart';
 
 /// The Raspberry Pi's 40-pin header, live: output pins glow when HIGH, input pins are buttons
 /// to tap and hold. Polls the stand-in GPIO's state file 10x a second (see raspi.dart).
@@ -45,10 +47,11 @@ class _RaspiPanelState extends State<RaspiPanel> {
   static const _led = Color(0xFFFF3B3B);
 
   int? _hover; // physical pin under the mouse
+  bool _threeD = Settings.instance.get('raspi.3d', false); // the 3D model instead of the flat board
 
   PinState? _state(int gpio) => _pins.where((s) => s.pin == gpio).firstOrNull;
 
-  Widget _dot(int physical) {
+  Widget _dot(int physical, {double cell = _BoardPainter.pitch, double size = 10}) {
     final what = header[physical]!;
     final s = what is int ? _state(what) : null;
     final color = switch (what) {
@@ -67,18 +70,20 @@ class _RaspiPanelState extends State<RaspiPanel> {
         cursor: input ? SystemMouseCursors.click : MouseCursor.defer,
         onEnter: (_) => setState(() => _hover = physical),
         onExit: (_) => setState(() => _hover = null),
-        child: GestureDetector(
-          // Input pins can be pressed right on the board too.
-          onTapDown: input ? (_) => _press(what, true) : null,
-          onTapUp: input ? (_) => _press(what, false) : null,
-          onTapCancel: input ? () => _press(what, false) : null,
+        child: Listener(
+          // Input pins can be pressed right on the board too: raw pointer down/up, so a press
+          // counts at once even on the 3D board, whose drag-to-turn would otherwise delay taps.
+          onPointerDown: input ? (_) => _press(what, true) : null,
+          onPointerUp: input ? (_) => _press(what, false) : null,
+          onPointerCancel: input ? (_) => _press(what, false) : null,
           child: Container(
-            width: _BoardPainter.pitch,
-            height: _BoardPainter.pitch,
+            width: cell,
+            height: cell,
             alignment: Alignment.center,
             child: Container(
-              width: 10,
-              height: 10,
+              key: Key('pin-$physical'),
+              width: size,
+              height: size,
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
@@ -96,13 +101,19 @@ class _RaspiPanelState extends State<RaspiPanel> {
     final physical = header.entries.firstWhere((e) => e.value == s.pin).key;
     final label = Text('GPIO ${s.pin} · pin $physical', style: const TextStyle(fontSize: 12, color: Nx.muted));
     if (s.output) {
-      return Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.lightbulb, color: s.high ? _led : const Color(0xFF5A1E1E), size: 22),
-        const SizedBox(width: 6),
-        label,
-        const SizedBox(width: 6),
-        Text(s.high ? 'ON' : 'OFF', style: TextStyle(fontWeight: FontWeight.w700, color: s.high ? _led : Nx.muted)),
-      ]);
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.lightbulb, color: s.high ? _led : const Color(0xFF5A1E1E), size: 22),
+          const SizedBox(width: 6),
+          label,
+          const SizedBox(width: 6),
+          Text(
+            s.high ? 'ON' : 'OFF',
+            style: TextStyle(fontWeight: FontWeight.w700, color: s.high ? _led : Nx.muted),
+          ),
+        ],
+      );
     }
     final down = _pressed.contains(s.pin);
     return GestureDetector(
@@ -116,13 +127,16 @@ class _RaspiPanelState extends State<RaspiPanel> {
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF2F5BD3)),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.radio_button_checked, size: 18, color: Colors.white),
-          const SizedBox(width: 6),
-          Text(down ? 'Pressed' : 'Hold button', style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(width: 8),
-          label,
-        ]),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.radio_button_checked, size: 18, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(down ? 'Pressed' : 'Hold button', style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(width: 8),
+            label,
+          ],
+        ),
       ),
     );
   }
@@ -132,43 +146,75 @@ class _RaspiPanelState extends State<RaspiPanel> {
     return Container(
       color: const Color(0xFF0E1322),
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Row(children: [
-          const Text('RASPBERRY PI · GPIO', style: TextStyle(fontSize: 11, letterSpacing: 1.2, color: Nx.muted, fontWeight: FontWeight.w600)),
-          const Spacer(),
-          if (!widget.running) const Text('Run to see the pins', style: TextStyle(fontSize: 11, color: Nx.muted)),
-        ]),
-        const SizedBox(height: 6),
-        // The header as it sits on the board: even pins on top, pin 1 bottom-left.
-        // A generic Raspberry Pi-style board (not an exact model), drawn at 420x270 and scaled to fit.
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 230),
-          child: FittedBox(
-            child: SizedBox(
-              width: _BoardPainter.w,
-              height: _BoardPainter.h,
-              child: Stack(children: [
-                const Positioned.fill(child: CustomPaint(painter: _BoardPainter())),
-                // The live pins sit exactly on the painted header: even pins on the top row.
-                for (var i = 1; i <= 40; i++)
-                  Positioned(
-                    left: _BoardPainter.headerX + ((i - 1) ~/ 2) * _BoardPainter.pitch,
-                    top: _BoardPainter.headerY + (i.isEven ? 0 : _BoardPainter.pitch),
-                    child: _dot(i),
-                  ),
-              ]),
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'RASPBERRY PI · GPIO',
+                style: TextStyle(fontSize: 11, letterSpacing: 1.2, color: Nx.muted, fontWeight: FontWeight.w600),
+              ),
+              const Spacer(),
+              if (!widget.running) const Text('Run to see the pins', style: TextStyle(fontSize: 11, color: Nx.muted)),
+              const SizedBox(width: 8),
+              SegmentedButton<bool>(
+                key: const Key('pi-view'),
+                showSelectedIcon: false,
+                style: const ButtonStyle(visualDensity: VisualDensity.compact, padding: WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 8))),
+                segments: const [
+                  ButtonSegment(value: false, label: Text('2D')),
+                  ButtonSegment(value: true, label: Text('3D')),
+                ],
+                selected: {_threeD},
+                onSelectionChanged: (s) {
+                  setState(() => _threeD = s.first);
+                  Settings.instance.set('raspi.3d', _threeD);
+                },
+              ),
+            ],
           ),
-        ),
-        if (_pins.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Wrap(spacing: 14, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [for (final s in _pins) _pinCard(s)]),
+          const SizedBox(height: 6),
+          // The header as it sits on the board: even pins on top, pin 1 bottom-left.
+          // A generic Raspberry Pi-style board (not an exact model), drawn at 420x270 and scaled to fit.
+          if (_threeD)
+            // Drag to turn, pinch or scroll to zoom; the same live pins sit on the model's header.
+            SizedBox(
+              height: 260,
+              child: ClipRect(child: Pi3DBoard(pin: (i, size) => _dot(i, cell: size, size: size * 0.75))), // a turned board stays in its box
+            )
+          else
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 230),
+              child: FittedBox(
+                child: SizedBox(
+                  width: _BoardPainter.w,
+                  height: _BoardPainter.h,
+                  child: Stack(
+                    children: [
+                      const Positioned.fill(child: CustomPaint(painter: _BoardPainter())),
+                      // The live pins sit exactly on the painted header: even pins on the top row.
+                      for (var i = 1; i <= 40; i++)
+                        Positioned(
+                          left: _BoardPainter.headerX + ((i - 1) ~/ 2) * _BoardPainter.pitch,
+                          top: _BoardPainter.headerY + (i.isEven ? 0 : _BoardPainter.pitch),
+                          child: _dot(i),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (_pins.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 14, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center, children: [for (final s in _pins) _pinCard(s)]),
+          ],
         ],
-      ]),
+      ),
     );
   }
 }
-
 
 /// The board: shadow and edge for thickness, a lit green PCB, mounting holes, SoC and RAM, the
 /// 40-pin header base (pins are live widgets on top), and the usual ports along the edges.
@@ -183,7 +229,12 @@ class _BoardPainter extends CustomPainter {
     const board = Rect.fromLTWH(6, 4, w - 40, h - 22);
     final r = RRect.fromRectAndRadius(board, const Radius.circular(14));
     // Thickness: soft shadow, then the darker PCB edge peeking out below the top surface.
-    canvas.drawRRect(r.shift(const Offset(4, 10)), Paint()..color = Colors.black54..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8));
+    canvas.drawRRect(
+      r.shift(const Offset(4, 10)),
+      Paint()
+        ..color = Colors.black54
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+    );
     canvas.drawRRect(r.shift(const Offset(0, 5)), Paint()..color = const Color(0xFF0B3D1E));
     canvas.drawRRect(
       r,
@@ -200,7 +251,14 @@ class _BoardPainter extends CustomPainter {
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
     for (var i = 0; i < 6; i++) {
-      canvas.drawPath(Path()..moveTo(70, 70.0 + i * 9)..lineTo(150, 70.0 + i * 9)..lineTo(170, 90.0 + i * 9)..lineTo(260, 90.0 + i * 9), trace);
+      canvas.drawPath(
+        Path()
+          ..moveTo(70, 70.0 + i * 9)
+          ..lineTo(150, 70.0 + i * 9)
+          ..lineTo(170, 90.0 + i * 9)
+          ..lineTo(260, 90.0 + i * 9),
+        trace,
+      );
     }
     // Mounting holes: gold ring, dark hole.
     for (final c in const [Offset(21, 20), Offset(348, 20), Offset(21, 232), Offset(348, 232)]) {
@@ -227,16 +285,37 @@ class _BoardPainter extends CustomPainter {
   /// A raised part: shadow, darker side for depth, lit top with a highlight edge.
   static void _block(Canvas c, Rect r, Color color, double depth, {String? label, bool dark = false, bool small = false}) {
     final rr = RRect.fromRectAndRadius(r, const Radius.circular(3));
-    c.drawRRect(rr.shift(Offset(depth, depth + 1)), Paint()..color = Colors.black45..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2));
+    c.drawRRect(
+      rr.shift(Offset(depth, depth + 1)),
+      Paint()
+        ..color = Colors.black45
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+    );
     c.drawRRect(rr.shift(Offset(0, depth)), Paint()..color = Color.lerp(color, Colors.black, 0.45)!);
-    c.drawRRect(rr, Paint()..shader = LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color.lerp(color, Colors.white, 0.18)!, color]).createShader(r));
-    c.drawRRect(rr.deflate(0.5), Paint()..color = const Color(0x33FFFFFF)..style = PaintingStyle.stroke);
+    c.drawRRect(
+      rr,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color.lerp(color, Colors.white, 0.18)!, color],
+        ).createShader(r),
+    );
+    c.drawRRect(
+      rr.deflate(0.5),
+      Paint()
+        ..color = const Color(0x33FFFFFF)
+        ..style = PaintingStyle.stroke,
+    );
     if (label != null) _text(c, label, r.center, small ? 7.5 : 10, dark ? const Color(0xFF2B2F36) : const Color(0xFFB9C0CC), center: true);
   }
 
   static void _text(Canvas c, String s, Offset at, double size, Color color, {bool center = false}) {
     final tp = TextPainter(
-      text: TextSpan(text: s, style: TextStyle(fontSize: size, color: color, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+      text: TextSpan(
+        text: s,
+        style: TextStyle(fontSize: size, color: color, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(c, center ? at - Offset(tp.width / 2, tp.height / 2) : at);

@@ -31,6 +31,7 @@ class Lesson {
     this.needs = '',
     this.exampleFile = '',
     this.checks = const [],
+    this.engines = const {},
   });
 
   final String id, title, summary, objective, explanation;
@@ -49,6 +50,7 @@ class Lesson {
   final String needs; // extra hardware/software, '' = nothing extra
   final String exampleFile; // file the example goes in ('' = the track's main file)
   final List<String> checks; // lines the verification run must see ('' input: defaults to [output]'s lines)
+  final Map<String, String> engines; // Database track: what this lesson looks like on 'sqlite' and on 'mysql'
 }
 
 class Question {

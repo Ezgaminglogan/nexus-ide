@@ -72,7 +72,7 @@ void main() {
 
   testWidgets('search finds lessons by function name and opens them; breadcrumbs and next work', (t) async {
     await open(t);
-    expect(find.text('Learn & Practice'), findsOneWidget);
+    expect(find.text('Learn & Practice'), findsWidgets);
     await t.enterText(find.byKey(const Key('learn-search')), 'printf');
     await t.pump();
     expect(find.text('Input and output'), findsWidgets);
@@ -149,7 +149,7 @@ void main() {
   testWidgets('phones get the topics in a drawer', (t) async {
     await open(t, size: const Size(400, 800));
     expect(find.byKey(const Key('learn-search')), findsNothing);
-    await t.tap(find.byTooltip('Open navigation menu'));
+    await t.tap(find.byTooltip('Topics'));
     await settle(t);
     expect(find.byKey(const Key('learn-search')), findsOneWidget);
     await t.enterText(find.byKey(const Key('learn-search')), 'class main');
@@ -158,5 +158,50 @@ void main() {
     await settle(t);
     expect(find.byKey(const Key('learn-search')), findsNothing); // drawer closed
     expect(find.text('Lesson 1 of 9'), findsOneWidget);
+  });
+
+  testWidgets('Next points right and Previous points left', (t) async {
+    await open(t, langId: 'c');
+    await t.tap(find.text('1. Program structure').last);
+    await settle(t);
+    await t.ensureVisible(find.byKey(const Key('learn-next')));
+    await t.pump();
+    final next = find.descendant(of: find.byKey(const Key('learn-next')), matching: find.byType(Icon));
+    expect(t.widget<Icon>(next).icon, Icons.arrow_forward);
+    expect(Directionality.of(t.element(next)), TextDirection.ltr); // right-to-left would mirror it into a left arrow
+    final prev = find.descendant(of: find.byKey(const Key('learn-prev')), matching: find.byType(Icon));
+    expect(t.widget<Icon>(prev).icon, Icons.arrow_back);
+    expect(Directionality.of(t.element(prev)), TextDirection.ltr);
+  });
+
+  testWidgets('Back goes up one level: lesson, then the track, then the Learn main page, then out', (t) async {
+    await t.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => t.binding.setSurfaceSize(null));
+    await t.pumpWidget(MaterialApp(theme: Nx.theme(), home: Builder(
+      builder: (context) => TextButton(onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LearnScreen(langId: 'java'))), child: const Text('home')),
+    )));
+    await t.tap(find.text('home'));
+    await settle(t);
+    await t.tap(find.byTooltip('Topics'));
+    await settle(t);
+    await t.enterText(find.byKey(const Key('learn-search')), 'class main');
+    await t.pump();
+    await t.tap(find.widgetWithText(ListTile, 'Class and main method'));
+    await settle(t);
+    expect(find.text('Lesson 1 of 9'), findsOneWidget);
+
+    await t.tap(find.byTooltip('Back to Java'));
+    await settle(t);
+    expect(find.text('Java: overview'), findsNothing);
+    expect(find.textContaining('9 lessons'), findsOneWidget); // the Java overview
+    await t.tap(find.byTooltip('Back to all topics'));
+    await settle(t);
+    expect(find.byKey(const Key('learn-home')), findsOneWidget);
+    for (final title in ['C', 'Python', 'Java', 'C#', 'PHP + MySQL', 'Raspberry Pi GPIO', 'Arduino', 'Web: HTML, CSS, JavaScript']) {
+      expect(find.text(title), findsWidgets, reason: title);
+    }
+    await t.tap(find.byTooltip('Back'));
+    await settle(t);
+    expect(find.text('home'), findsOneWidget); // left Learn
   });
 }

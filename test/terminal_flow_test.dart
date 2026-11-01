@@ -55,6 +55,7 @@ Future<void> openTile(WidgetTester t, String blurb) async {
   await t.pumpWidget(NexusApp(ready: Future.value()));
   await pumpFor(t);
   await t.ensureVisible(find.text(blurb));
+  await t.pump();
   await t.tap(find.text(blurb));
   await pumpFor(t);
 }
@@ -214,6 +215,43 @@ void main() {
     await pumpFor(t);
     expect(find.text('line 1499'), findsOneWidget);
   }, timeout: const Timeout(Duration(minutes: 2)));
+
+  testWidgets('Database tile: the template runs on SQLite, then on MySQL; an SQL error links to its line', (t) async {
+    EditorScreen.terminalScreen = true;
+    t.view.physicalSize = const Size(412 * 2.6, 915 * 2.6);
+    t.view.devicePixelRatio = 2.6;
+    addTearDown(t.view.reset);
+    addTearDown(() => sqlEngine = SqlEngine.sqlite);
+    await openTile(t, 'SQL · SQLite or MySQL');
+    expect(find.text('SQLite'), findsOneWidget);
+    await t.tap(find.byType(RunButton));
+    await until(t, () => state(t) == RunState.finished, 'the SQLite run');
+    await pumpFor(t);
+    expect(output(t), allOf(contains('| Ana  |    91 |'), contains('| Cara |    85 |'), contains('2 rows in set')));
+    await t.tap(find.byKey(const Key('back-to-editor')));
+    await pumpFor(t);
+
+    final mysql = Process.runSync(r'C:\xampp\mysql\bin\mysql.exe', ['-h', '127.0.0.1', '-u', 'root', '-e', 'SELECT 1']).exitCode == 0;
+    if (mysql) {
+      await t.tap(find.text('MySQL'));
+      await pumpFor(t);
+      await t.tap(find.byType(RunButton));
+      await until(t, () => state(t) == RunState.finished || state(t) == RunState.failed, 'the MySQL run', seconds: 60);
+      await pumpFor(t);
+      expect(state(t), RunState.finished, reason: session(t).detail);
+      expect(output(t), allOf(contains('| Ana  |    91 |'), isNot(contains('rows in set'))));
+      await t.tap(find.byKey(const Key('back-to-editor')));
+      await pumpFor(t);
+      await t.tap(find.text('SQLite'));
+      await pumpFor(t);
+    }
+
+    await setCode(t, 'SELECT 1;\nSELEC oops;\n');
+    await t.tap(find.byType(RunButton));
+    await until(t, () => state(t) == RunState.failed, 'the SQL error');
+    await pumpFor(t);
+    expect(find.textContaining('↗ main.sql:2', findRichText: true), findsOneWidget);
+  }, timeout: const Timeout(Duration(minutes: 3)));
 
   testWidgets('desktop keeps the docked terminal (no separate screen)', (t) async {
     EditorScreen.terminalScreen = false;

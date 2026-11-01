@@ -17,7 +17,7 @@ String? safeRel(String rel) {
 String _abs(String root, String rel) => p.joinAll([root, ...rel.split('/')]);
 
 /// Hidden from the explorer: dot-files and what compilers/NEXUS generate.
-const _generated = {'build', 'classes', 'bin', 'obj', 'RPi', 'gpiozero', '__pycache__', 'design.json', 'nexus_unbuf.h', 'nexus.csproj', 'main.exe', 'main.dex', 'main', 'gpio_state.txt', 'gpio_in.txt'};
+const _generated = {'build', 'classes', 'bin', 'obj', 'RPi', 'gpiozero', '__pycache__', 'design.json', 'nexus_unbuf.h', 'nexus.csproj', 'main.exe', 'main.dex', 'main', 'gpio_state.txt', 'gpio_in.txt', 'run_sql.py', 'nexus.db'};
 
 bool shown(String name) => !name.startsWith('.') && !_generated.contains(name);
 

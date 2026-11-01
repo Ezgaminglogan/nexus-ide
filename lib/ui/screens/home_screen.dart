@@ -310,7 +310,7 @@ class _LearnCard extends StatelessWidget {
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Learn & Practice', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
                   SizedBox(height: 2),
-                  Text('Offline lessons, quizzes and checked exercises for all 8 workspaces.', style: TextStyle(fontSize: 13, color: Nx.muted)),
+                  Text('Offline lessons, quizzes and checked exercises for every workspace.', style: TextStyle(fontSize: 13, color: Nx.muted)),
                 ]),
               ),
               const SizedBox(width: 8),

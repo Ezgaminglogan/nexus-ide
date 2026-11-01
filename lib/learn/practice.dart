@@ -83,7 +83,8 @@ List<Step> _steps(Language lang) {
 
 /// Checks the student's file for [ex] (or [code], which then replaces it: used by the checks that
 /// verify lessons and solutions).
-Future<CheckResult> checkExercise(Language base, Exercise ex, PracticeRun run, {String? code}) async {
+/// [steps] replaces how the program is run (the Database track's MySQL check).
+Future<CheckResult> checkExercise(Language base, Exercise ex, PracticeRun run, {String? code, List<Step>? steps}) async {
   final lang = exerciseLanguage(base, ex);
   final dir = RunSession.workDir(lang).path;
   code ??= File(p.join(dir, lang.fileName)).existsSync() ? RunSession.load(lang) : ex.starter;
@@ -121,7 +122,7 @@ Future<CheckResult> checkExercise(Language base, Exercise ex, PracticeRun run, {
       );
 
     case CheckKind.output || CheckKind.gpio:
-      final steps = _steps(lang);
+      steps ??= _steps(lang);
       for (final s in steps.take(steps.length - 1)) {
         if (run.stopped) return CheckResult(automatic: false, message: 'Stopped.');
         final r = await _tryExec(run, lang, s, dir, _compileLimit);
@@ -189,7 +190,7 @@ Future<(String, String)> runtimeStatus(Language lang) async {
     _ when Platform.isAndroid => null,
     'c' => ('mingw/bin/gcc', ['--version']),
     'arduino' => ('arduino/arduino-cli', ['version']),
-    'python' || 'raspi' => ('python/python', ['--version']),
+    'python' || 'raspi' || 'sql' => ('python/python', ['--version']), // SQLite runs through Python's sqlite3
     'java' => ('jdk/bin/java', ['-version']),
     'csharp' => ('dotnet/dotnet', ['--version']),
     'php' => ('php/php', ['-v']),
@@ -209,6 +210,7 @@ Future<(String, String)> runtimeStatus(Language lang) async {
     final first = '${r.stdout}\n${r.stderr}'.trim().split('\n').first.trim();
     final where = File(exe).isAbsolute && File(exe).existsSync() ? 'bundled' : 'found on this PC';
     if (lang.id == 'raspi') return ('simulated', '$first ($where) with the NEXUS GPIO stand-in. No real pins.');
+    if (lang.id == 'sql') return ('installed', 'SQLite through $first ($where). MySQL needs XAMPP MySQL running.');
     return ('installed', '$first ($where)');
   } on ProcessException {
     return ('missing', '${p.basename(probe.$1)} is not bundled or installed on this PC.');

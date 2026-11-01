@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus_ide/core/raspi.dart';
+import 'package:nexus_ide/core/settings.dart';
+import 'package:nexus_ide/core/toolchains.dart';
+import 'package:nexus_ide/ui/widgets/pi3d.dart';
 import 'package:nexus_ide/ui/widgets/raspi_panel.dart';
 import 'package:path/path.dart' as p;
 
@@ -60,5 +63,44 @@ print(GPIO.input(11))
     await hold.up();
     await tester.pump();
     expect(File(p.join(dir, inputFile)).readAsStringSync(), '');
+  });
+
+  testWidgets('3D board: the model loads, live pins sit on its header, holding an input pin presses it, dragging turns it', (tester) async {
+    Toolchains.workRoot = Directory.systemTemp.createTempSync('raspi3d').path;
+    Settings.reset();
+    Settings.instance.set('raspi.3d', true);
+    tester.view.physicalSize = const Size(900, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final dir = Directory.systemTemp.createTempSync('raspi_ui3d').path;
+    File(p.join(dir, stateFile)).writeAsStringSync('18 out 1\n17 in 0 up');
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: RaspiPanel(dir: dir, running: true))));
+    for (var i = 0; i < 20 && find.byKey(const Key('pin-11')).evaluate().isEmpty; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100))); // reading the model and its texture
+      await tester.pump(const Duration(milliseconds: 120));
+    }
+    expect(find.byType(Pi3DBoard), findsOneWidget);
+    expect(find.text(piModelCredit), findsOneWidget);
+    expect(find.byKey(const Key('pin-1')), findsOneWidget);
+    expect(find.byKey(const Key('pin-40')), findsOneWidget);
+
+    // GPIO 17 is physical pin 11: hold it on the 3D header.
+    final hold = await tester.startGesture(tester.getCenter(find.byKey(const Key('pin-11'))));
+    await tester.pump();
+    expect(File(p.join(dir, inputFile)).readAsStringSync(), '17');
+    await hold.up();
+    await tester.pump();
+    expect(File(p.join(dir, inputFile)).readAsStringSync(), '');
+
+    final before = tester.getCenter(find.byKey(const Key('pin-12')));
+    await tester.drag(find.byKey(const Key('pi3d')), const Offset(100, 30));
+    await tester.pump();
+    expect(tester.getCenter(find.byKey(const Key('pin-12'))), isNot(before)); // the pins turn with the board
+
+    await tester.tap(find.text('2D'));
+    await tester.pump();
+    expect(find.byType(Pi3DBoard), findsNothing);
+    expect(Settings.instance.get('raspi.3d', true), isFalse);
+    await tester.pump(const Duration(seconds: 1)); // let the double-tap (reset view) timer run out
   });
 }

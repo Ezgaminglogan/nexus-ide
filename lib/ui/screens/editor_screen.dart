@@ -8,6 +8,7 @@ import 'package:highlight/languages/css.dart';
 import 'package:highlight/languages/java.dart';
 import 'package:highlight/languages/javascript.dart';
 import 'package:highlight/languages/python.dart';
+import 'package:highlight/languages/sql.dart';
 import 'package:highlight/languages/xml.dart';
 
 import '../../core/core.dart';
@@ -59,7 +60,7 @@ class _EditorScreenState extends State<EditorScreen> {
   late final _saved = <String, String>{_lang.fileName: _code.fullText};
   bool _dirty = false;
   late final String _root = RunSession.workDir(_lang).path;
-  static final _modes = {'html': xml, 'htm': xml, 'php': xml, 'css': css, 'js': javascript, 'py': python, 'java': java, 'cs': cs, 'c': cpp, 'h': cpp, 'ino': cpp};
+  static final _modes = {'html': xml, 'htm': xml, 'php': xml, 'css': css, 'js': javascript, 'py': python, 'java': java, 'cs': cs, 'c': cpp, 'h': cpp, 'ino': cpp, 'sql': sql};
 
   // Explorer: sidebar on PCs (toggle + drag to resize), drawer on phones. Remembered in settings.
   late bool _explorer = Settings.instance.get('explorer.visible', true);
@@ -382,7 +383,12 @@ class _EditorScreenState extends State<EditorScreen> {
     }
   }
 
-  Future<void> _run() => _start((code) => _session.run(_lang, code));
+  Future<void> _run() => _start((code) async {
+        if (_lang.id != 'sql' || sqlEngine == SqlEngine.sqlite) return _session.run(_lang, code);
+        // MySQL: phones start the bundled MariaDB (with the local server) first.
+        if (Platform.isAndroid && !await LocalServer.instance.ensure(htdocsDir)) return _session.notice(LocalServer.instance.error);
+        await _session.run(_lang, code, steps: mysqlSteps(database: mysqlDatabaseFor(_lang)));
+      });
 
   // Workflows whose result is terminal output (not the Web/PHP preview).
   bool get _terminalFlow => !_web && !_php;
@@ -450,6 +456,33 @@ class _EditorScreenState extends State<EditorScreen> {
             ? _session.run(_lang, code, steps: const [], runLabel: label, then: otgMonitor(_port!, _baud))
             : _session.run(_lang, code, steps: monitorSteps, vars: _vars, runLabel: label);
       }));
+
+  /// Database workspace: which engine Run uses, and what it needs.
+  Widget _sqlBar() => Container(
+        color: const Color(0xFF10162A),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Wrap(spacing: 12, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          SegmentedButton<SqlEngine>(
+            key: const Key('sql-engine'),
+            showSelectedIcon: false,
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            segments: const [
+              ButtonSegment(value: SqlEngine.sqlite, label: Text('SQLite'), icon: Icon(Icons.description_outlined, size: 16)),
+              ButtonSegment(value: SqlEngine.mysql, label: Text('MySQL'), icon: Icon(Icons.dns_outlined, size: 16)),
+            ],
+            selected: {sqlEngine},
+            onSelectionChanged: _session.running ? null : (s) => setState(() => sqlEngine = s.first),
+          ),
+          Text(
+            sqlEngine == SqlEngine.sqlite
+                ? 'Built in: the database is the file nexus.db in this project. No server needed.'
+                : Platform.isAndroid
+                    ? 'MariaDB on this phone (starts by itself): 127.0.0.1, root, database nexus.'
+                    : 'XAMPP MySQL must be running (XAMPP Control Panel → Start): 127.0.0.1, root, database nexus.',
+            style: const TextStyle(fontSize: 12.5, color: Nx.muted),
+          ),
+        ]),
+      );
 
   void _format() => _code.format(braces: _lang.braces);
 
@@ -652,6 +685,7 @@ class _EditorScreenState extends State<EditorScreen> {
             ],
           ),
           body: SafeArea(top: false, child: _layout(context, [
+            if (_lang.id == 'sql') _sqlBar(),
             if (_arduino)
               ArduinoBar(
                 board: _board,

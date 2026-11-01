@@ -6,9 +6,10 @@ import 'tracks/java.dart';
 import 'tracks/php.dart';
 import 'tracks/python.dart';
 import 'tracks/raspi.dart';
+import 'tracks/sql.dart';
 import 'tracks/web.dart';
 
 /// Every Learn track, in home-screen order. Add a track: write `lib/learn/tracks/<id>.dart` and list it here.
-const tracks = <Track>[cTrack, pythonTrack, javaTrack, csharpTrack, phpTrack, raspiTrack, arduinoTrack, webTrack];
+const tracks = <Track>[cTrack, pythonTrack, javaTrack, csharpTrack, phpTrack, sqlTrack, raspiTrack, arduinoTrack, webTrack];
 
 Track? trackFor(String langId) => tracks.where((t) => t.langId == langId).firstOrNull;

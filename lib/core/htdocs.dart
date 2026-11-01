@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 
 import 'console_buffer.dart';
 import 'runner.dart';
 import 'settings.dart';
+import 'stacks.dart';
 import 'toolchains.dart';
 
 /// PHP and Web projects the XAMPP way: every project is a folder in one `htdocs` folder
@@ -17,7 +19,7 @@ String get htdocsDir => p.join(Toolchains.workRoot, 'htdocs');
 
 Language _lang(String id) => languages.firstWhere((l) => l.id == id);
 
-typedef HtProject = ({String name, bool php});
+typedef HtProject = ({String name, bool php, TechStack stack});
 
 /// The project folders in htdocs, by name. A folder with an index.php is a PHP project.
 List<HtProject> listProjects() {
@@ -25,7 +27,8 @@ List<HtProject> listProjects() {
   if (!d.existsSync()) return const [];
   return [
     for (final e in d.listSync().whereType<Directory>())
-      if (!p.basename(e.path).startsWith('.')) (name: p.basename(e.path), php: File(p.join(e.path, 'index.php')).existsSync()),
+      if (!p.basename(e.path).startsWith('.'))
+        (name: p.basename(e.path), php: File(p.join(e.path, 'index.php')).existsSync(), stack: _stackOf(e.path)),
   ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 }
 
@@ -43,16 +46,34 @@ String? projectNameProblem(String name) {
   return null;
 }
 
-/// Makes `htdocs/<name>` with its index page (PHP or HTML template). Null on success.
-String? createProject(String name, {required bool php}) {
+/// The stack a project was made with (`.nexus-stack` in its folder); older projects: by index file.
+TechStack _stackOf(String dir) {
+  final f = File(p.join(dir, '.nexus-stack'));
+  if (f.existsSync()) return stackById(f.readAsStringSync().trim());
+  return stackById(File(p.join(dir, 'index.php')).existsSync() ? 'php-mysql' : 'html');
+}
+
+/// Makes `htdocs/<name>` from a tech [stack]: its index page, plus Bootstrap's files in
+/// assets/bootstrap when the stack uses it. Null on success.
+Future<String?> createProject(String name, {String stack = 'html'}) async {
   final problem = projectNameProblem(name);
   if (problem != null) return problem;
-  final lang = _lang(php ? 'php' : 'web');
+  final st = stackById(stack);
+  final lang = _lang(st.php ? 'php' : 'web');
+  final dir = Directory(p.join(htdocsDir, name));
   try {
-    final dir = Directory(p.join(htdocsDir, name))..createSync(recursive: true);
-    File(p.join(dir.path, lang.fileName)).writeAsStringSync(lang.template);
-  } on FileSystemException catch (e) {
-    return 'Could not create $name: ${e.osError?.message ?? e.message}';
+    dir.createSync(recursive: true);
+    File(p.join(dir.path, lang.fileName)).writeAsStringSync(stackPages[st.id] ?? lang.template);
+    File(p.join(dir.path, '.nexus-stack')).writeAsStringSync(st.id);
+    if (st.bootstrap) {
+      for (final f in ['css/bootstrap.min.css', 'js/bootstrap.bundle.min.js', 'LICENSE']) {
+        final data = await rootBundle.load('assets/stacks/bootstrap/$f');
+        (File(p.join(dir.path, 'assets', 'bootstrap', f))..parent.createSync(recursive: true)).writeAsBytesSync(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes));
+      }
+    }
+  } on Object catch (e) {
+    if (dir.existsSync()) dir.deleteSync(recursive: true); // no half-made project left in the list
+    return 'Could not create $name: $e';
   }
   return null;
 }

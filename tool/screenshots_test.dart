@@ -12,10 +12,12 @@ import 'package:nexus_ide/core/core.dart';
 import 'package:nexus_ide/main.dart';
 import 'package:nexus_ide/learn/tracks.dart';
 import 'package:nexus_ide/ui/screens/editor_screen.dart';
+import 'package:nexus_ide/ui/screens/htdocs_screen.dart';
 import 'package:nexus_ide/ui/screens/learn_screen.dart';
 import 'package:nexus_ide/ui/screens/terminal_screen.dart';
 import 'package:nexus_ide/ui/screens/settings_screen.dart';
 import 'package:nexus_ide/ui/widgets/update_dialog.dart';
+import 'package:nexus_ide/ui/widgets/raspi_panel.dart';
 import 'package:nexus_ide/ui/widgets/widgets.dart';
 
 Future<void> font(String family, List<String> files) async {
@@ -81,9 +83,9 @@ void main() {
   testWidgets('htdocs (desktop and phone)', (t) async {
     t.view.physicalSize = const Size(1400, 900);
     t.view.devicePixelRatio = 1;
-    createProject('guestbook', php: true);
-    createProject('portfolio', php: false);
-    createProject('enrollment', php: true);
+    await createProject('guestbook', stack: 'php-mysql');
+    await createProject('portfolio', stack: 'html');
+    await createProject('enrollment', stack: 'php-mysql');
     await t.pumpWidget(NexusApp(ready: Future.value()));
     await settle(t);
     await t.ensureVisible(find.text('Server pages · MySQL'));
@@ -267,5 +269,59 @@ void main() {
     await t.tap(find.text('Preview'));
     await settle(t);
     await shot(t, 'new_file_dialog');
+  });
+
+  testWidgets('database: SQLite run on a phone, stack picker, Database lesson', (t) async {
+    EditorScreen.terminalScreen = true;
+    addTearDown(() => EditorScreen.terminalScreen = Platform.isAndroid);
+    Toolchains.toolsDir = '${Directory.current.path}/toolchains';
+    t.view.physicalSize = const Size(412 * 2.6, 915 * 2.6);
+    t.view.devicePixelRatio = 2.6;
+    await t.pumpWidget(NexusApp(ready: Future.value()));
+    await settle(t);
+    await t.ensureVisible(find.text('SQL · SQLite or MySQL'));
+    await t.pump();
+    await t.tap(find.text('SQL · SQLite or MySQL'));
+    await settle(t);
+    await shot(t, 'phone_database_editor');
+    await t.tap(find.byType(RunButton));
+    RunState? state() => find.byType(TerminalScreen).evaluate().isEmpty ? null : (find.byType(TerminalScreen).evaluate().first.widget as TerminalScreen).session.state;
+    for (var i = 0; i < 300 && state() != RunState.finished; i++) {
+      await settle(t);
+    }
+    await settle(t);
+    await shot(t, 'phone_database_run');
+
+    t.view.physicalSize = const Size(1400, 1000);
+    t.view.devicePixelRatio = 1;
+    await t.pumpWidget(MaterialApp(key: UniqueKey(), debugShowCheckedModeBanner: false, theme: Nx.theme(), home: const HtdocsScreen()));
+    await settle(t);
+    await t.tap(find.byKey(const Key('new-project')));
+    await settle(t);
+    await t.enterText(find.byKey(const Key('project-name')), 'enrollment');
+    await t.tap(find.byKey(const Key('stack-php-bootstrap-mysql')));
+    await settle(t);
+    await shot(t, 'new_project_stacks');
+
+    await t.pumpWidget(MaterialApp(key: UniqueKey(), debugShowCheckedModeBanner: false, theme: Nx.theme(), home: const LearnScreen(langId: 'sql')));
+    await settle(t);
+    await shot(t, 'learn_database');
+  });
+
+  testWidgets('raspberry pi 3D board', (t) async {
+    t.view.physicalSize = const Size(900, 420);
+    t.view.devicePixelRatio = 1;
+    final dir = Directory.systemTemp.createTempSync('pi3d').path;
+    File('$dir/gpio_state.txt').writeAsStringSync('18 out 1\n17 in 0 up\n27 out 0');
+    Settings.instance.set('raspi.3d', true);
+    await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: Nx.theme(), home: Scaffold(body: RaspiPanel(dir: dir, running: true))));
+    for (var i = 0; i < 20; i++) {
+      await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await t.pump(const Duration(milliseconds: 120));
+    }
+    await shot(t, 'raspi_3d');
+    await t.drag(find.byKey(const Key('pi3d')), const Offset(120, 40));
+    await settle(t);
+    await shot(t, 'raspi_3d_turned');
   });
 }
