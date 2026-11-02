@@ -158,7 +158,10 @@ void main() {
   });
 
   testWidgets('home (desktop and phone)', (t) async {
-    t.view.physicalSize = const Size(1280, 975);
+    Updater.instance
+      ..status = UpdateStatus.idle // the update-dialog shot above leaves an update "available"
+      ..latest = null;
+    t.view.physicalSize = const Size(1440, 1240);
     t.view.devicePixelRatio = 1;
     await t.pumpWidget(NexusApp(ready: Future.value()));
     await settle(t);
@@ -190,7 +193,7 @@ void main() {
     await t.pumpWidget(MaterialApp(debugShowCheckedModeBanner: false, theme: Nx.theme(), home: const LearnScreen()));
     await settle(t);
     if (find.byKey(const Key('learn-search')).evaluate().isEmpty) {
-      await t.tap(find.byTooltip('Open navigation menu'));
+      await t.tap(find.byTooltip('Topics'));
       await settle(t);
     }
     await t.enterText(find.byKey(const Key('learn-search')), search);
@@ -323,5 +326,41 @@ void main() {
     await t.drag(find.byKey(const Key('pi3d')), const Offset(120, 40));
     await settle(t);
     await shot(t, 'raspi_3d_turned');
+  });
+
+  testWidgets('desktop: a Python program running, terminal docked', (t) async {
+    t.view.physicalSize = const Size(1600, 900);
+    t.view.devicePixelRatio = 1;
+    Toolchains.toolsDir = '${Directory.current.path}/toolchains';
+    File('${Toolchains.workRoot}/python/main.py')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('''# Grade report: lists, loops and f-strings
+students = {"Ana": [91, 88, 95], "Ben": [74, 80, 69], "Cara": [85, 90, 87]}
+
+print("Student   Average  Remark")
+print("-" * 28)
+for name, scores in students.items():
+    average = sum(scores) / len(scores)
+    remark = "Passed" if average >= 75 else "Failed"
+    print(f"{name:<9} {average:>7.2f}  {remark}")
+
+best = max(students, key=lambda n: sum(students[n]))
+print()
+print(f"Top student: {best}")
+''');
+    await t.pumpWidget(NexusApp(ready: Future.value()));
+    await settle(t);
+    await t.tap(find.text('Scripts and data'));
+    await settle(t);
+    await t.tap(find.byType(RunButton));
+    RunState state() => (find.byType(ConsoleView).evaluate().first.widget as ConsoleView).session.state;
+    for (var i = 0; i < 100 && (find.byType(ConsoleView).evaluate().isEmpty || state() != RunState.finished); i++) {
+      await settle(t);
+    }
+    await settle(t);
+    await shot(t, 'desktop_run');
+    await t.pumpWidget(const SizedBox()); // close the editor (ends the session) and let its timers finish
+    await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await t.pump(const Duration(seconds: 5));
   });
 }

@@ -22,7 +22,7 @@ class RunButton extends StatelessWidget {
         backgroundColor: running ? Nx.stop : Nx.run,
         foregroundColor: running ? Colors.white : const Color(0xFF05351B),
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700),
+        textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700), // the theme's font, bolder
       ),
       icon: Icon(running ? Icons.stop_rounded : icon),
       label: Text(running ? 'Stop' : '$label$hint'),
