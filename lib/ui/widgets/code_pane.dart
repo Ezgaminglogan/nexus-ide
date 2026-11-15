@@ -15,6 +15,11 @@ class NexusCodeController extends CodeController {
   @override
   set value(TextEditingValue newValue) => super.value = smartNewline(super.value, newValue) ?? newValue;
 
+  // The package's desktop Enter/Tab call insertStr, which sets text and caret separately: the
+  // caret is invalid during the text change, so smartNewline skipped every hardware Enter.
+  @override
+  void insertStr(String str) => insertText(str);
+
   void insertText(String s) {
     final sel = selection.isValid ? selection : TextSelection.collapsed(offset: text.length);
     value = TextEditingValue(

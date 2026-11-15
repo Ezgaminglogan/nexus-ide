@@ -83,14 +83,16 @@ String formatCode(String text, {required bool braces}) {
 /// indented empty line with the `}` below it.
 /// Returns null when nothing should change.
 TextEditingValue? smartNewline(TextEditingValue oldV, TextEditingValue newV) {
-  final a = oldV.text, b = newV.text;
-  if (b.length <= a.length) return null;
+  final a = oldV.text, b = newV.text, at = newV.selection.baseOffset;
+  if (b.length <= a.length || !newV.selection.isCollapsed || at < 1) return null;
+  // Anchor the diff on the caret: Enter before an existing "\n" is otherwise ambiguous and the
+  // insert would be found one char to the right of the caret (no indent at the end of a line).
   var p = 0;
-  while (p < a.length && a[p] == b[p]) {
+  while (p < a.length && p < at - 1 && a[p] == b[p]) {
     p++;
   }
   var s = 0;
-  while (s < a.length - p && a[a.length - 1 - s] == b[b.length - 1 - s]) {
+  while (s < a.length - p && s < b.length - at && a[a.length - 1 - s] == b[b.length - 1 - s]) {
     s++;
   }
   final inserted = b.substring(p, b.length - s);

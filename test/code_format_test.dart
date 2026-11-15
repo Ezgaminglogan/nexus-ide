@@ -103,6 +103,16 @@ try {
       expect(r.text, '    int n;\n    ');
     });
 
+    // The screenshot bug: Enter at the end of a line that has more lines below left the caret at
+    // column 0, because the text diff saw "\n" + "\n" and placed the insert one char too far right.
+    test('Enter at the end of a middle line keeps the indent', () {
+      const code = '{\n        x();\n    }';
+      final end = code.indexOf(';') + 1;
+      final r = smartNewline(at(code, end), at('{\n        x();\n\n    }', end + 1))!;
+      expect(r.text, '{\n        x();\n        \n    }');
+      expect(r.selection.baseOffset, end + 1 + 8);
+    });
+
     test('phone keyboard committing a word plus newline still indents', () {
       final r = smartNewline(at('    int n'), at('    int n;\n'))!;
       expect(r.text, '    int n;\n    ');
@@ -157,6 +167,16 @@ try {
     c.insertText('X');
     expect(c.text.split('\n')[2].trim(), 'SystemX.out.println("hi");');
     expect(c.text, startsWith('public class Main {'));
+  });
+
+  test('desktop Enter key (the package Enter action) keeps the indent', () {
+    const java = 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("hi");\n    }\n}\n';
+    final c = NexusCodeController(text: java);
+    final end = java.indexOf(';') + 1;
+    c.selection = TextSelection.collapsed(offset: end);
+    c.onEnterKeyAction();
+    expect(c.text.split('\n')[3], '        ');
+    expect(c.selection.baseOffset, end + 1 + 8);
   });
 
   test('arrow keys move the cursor by character and line, and Select grows the selection', () {
