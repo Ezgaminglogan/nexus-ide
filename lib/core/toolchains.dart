@@ -18,6 +18,7 @@ import 'package:path_provider/path_provider.dart';
 import 'arduino.dart';
 import 'database.dart';
 import 'raspi.dart';
+import 'words.dart';
 import 'workspace.dart' as ws;
 
 /// One command. [tool] is relative to [Toolchains.toolsDir] (no .exe),
@@ -239,7 +240,7 @@ final languages = <Language>[
       (tool: './main', args: []),
     ],
     extraFiles: {'nexus_unbuf.h': _unbufHeader},
-    words: ['printf', 'scanf', 'puts', 'fgets', 'getchar', 'malloc', 'calloc', 'free', 'strlen', 'strcpy', 'strcmp', 'strcat', 'sizeof', 'NULL', 'EOF'],
+    words: cWords,
   ),
   Language(
     id: 'arduino',
@@ -256,9 +257,7 @@ final languages = <Language>[
     steps: verifySteps, // the editor's Arduino bar also offers Upload and Serial Monitor
     androidSteps: phoneBuildSteps, // Uno/Nano: bundled avr-gcc, upload over USB OTG (otg.dart)
     env: arduinoEnv,
-    words: ['pinMode', 'digitalWrite', 'digitalRead', 'analogRead', 'analogWrite', 'delay', 'millis',
-        'Serial', 'begin', 'println', 'print', 'available', 'read', 'HIGH', 'LOW', 'INPUT', 'OUTPUT',
-        'INPUT_PULLUP', 'LED_BUILTIN', 'setup', 'loop', 'map', 'constrain', 'tone', 'noTone'],
+    words: arduinoWords,
   ),
   Language(
     id: 'python',
@@ -275,7 +274,7 @@ final languages = <Language>[
     androidSteps: [
       (tool: 'bin/python3', args: ['-u', 'main.py']),
     ],
-    words: ['print', 'input', 'range', 'len', 'int', 'float', 'str', 'list', 'dict', 'enumerate'],
+    words: pythonWords,
   ),
   Language(
     id: 'java',
@@ -303,7 +302,7 @@ final languages = <Language>[
       (tool: '/system/bin/chmod', args: ['444', 'main.dex']),
       (tool: _dalvikvm, args: ['-cp', 'main.dex', 'Main']),
     ],
-    words: ['System', 'println', 'print', 'Scanner', 'nextInt', 'nextLine', 'String', 'ArrayList'],
+    words: javaWords,
   ),
   Language(
     id: 'csharp',
@@ -334,7 +333,7 @@ final languages = <Language>[
       'DOTNET_CLI_USE_MSBUILD_SERVER': '0',
       'UseSharedCompilation': 'false',
     },
-    words: ['Console', 'WriteLine', 'ReadLine', 'Write', 'string', 'int.Parse', 'List', 'Math'],
+    words: csharpWords,
   ),
   Language(
     id: 'web',
@@ -347,8 +346,7 @@ final languages = <Language>[
     template: _webTemplate,
     steps: const [], // no compiler: the editor shows the page (web_preview.dart)
     androidSteps: const [],
-    words: ['div', 'section', 'header', 'footer', 'button', 'input', 'class', 'style', 'display', 'flex', 'grid',
-        'margin', 'padding', 'color', 'background', 'document', 'querySelector', 'addEventListener', 'console'],
+    words: webWords,
   ),
   Language(
     id: 'php',
@@ -368,8 +366,7 @@ final languages = <Language>[
     androidSteps: [
       (tool: '/system/bin/sh', args: ['{tools}/web/serve.sh']),
     ],
-    words: ['echo', 'isset', 'mysqli', 'query', 'prepare', 'bind_param', 'execute', 'fetch_assoc', 'fetch_all',
-        '\$_POST', '\$_GET', 'htmlspecialchars', 'foreach', 'array', 'count', 'strlen'],
+    words: phpWords,
   ),
   Language(
     id: 'sql',
@@ -389,8 +386,7 @@ final languages = <Language>[
       (tool: 'bin/python3', args: ['-u', 'run_sql.py', 'main.sql']),
     ],
     extraFiles: {'run_sql.py': sqliteRunner},
-    words: ['SELECT', 'FROM', 'WHERE', 'ORDER BY', 'GROUP BY', 'HAVING', 'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
-        'CREATE TABLE', 'DROP TABLE', 'PRIMARY KEY', 'FOREIGN KEY', 'REFERENCES', 'JOIN', 'LEFT JOIN', 'COUNT', 'AVG', 'SUM', 'LIMIT'],
+    words: sqlWords,
   ),
   Language(
     id: 'raspi',
@@ -409,8 +405,7 @@ final languages = <Language>[
       (tool: 'bin/python3', args: ['-u', 'main.py']),
     ],
     extraFiles: raspiFiles,
-    words: ['GPIO', 'setmode', 'setup', 'output', 'input', 'cleanup', 'BCM', 'BOARD', 'OUT', 'IN', 'HIGH', 'LOW',
-        'PUD_UP', 'PUD_DOWN', 'pull_up_down', 'time', 'sleep'],
+    words: raspiWords,
   ),
 ];
 
