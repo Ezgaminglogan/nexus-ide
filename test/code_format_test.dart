@@ -113,6 +113,12 @@ try {
       expect(r.selection.baseOffset, end + 1 + 8);
     });
 
+    // Enter at the very start of the file (making room for an import) threw a RangeError, so the
+    // editor and the keyboard disagreed and the next typed text landed inside the class.
+    test('Enter at the start of the file adds a plain empty line', () {
+      expect(smartNewline(at('public class Main {', 0), at('\npublic class Main {', 1)), isNull);
+    });
+
     test('phone keyboard committing a word plus newline still indents', () {
       final r = smartNewline(at('    int n'), at('    int n;\n'))!;
       expect(r.text, '    int n;\n    ');

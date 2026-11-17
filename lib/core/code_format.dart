@@ -101,7 +101,7 @@ TextEditingValue? smartNewline(TextEditingValue oldV, TextEditingValue newV) {
   if (newV.selection.baseOffset != caret) return null;
 
   final nl = caret - 1;
-  final line = b.substring(b.lastIndexOf('\n', nl - 1) + 1, nl);
+  final line = b.substring(nl == 0 ? 0 : b.lastIndexOf('\n', nl - 1) + 1, nl); // lastIndexOf(-1) throws
   final base = line.substring(0, line.length - line.trimLeft().length);
   final tag = _openTagAtEnd.firstMatch(line.trimRight()); // `<div class="x">` (HTML/PHP)
   final opens = line.trimRight().endsWith('{') || line.trimRight().endsWith(':') ||
